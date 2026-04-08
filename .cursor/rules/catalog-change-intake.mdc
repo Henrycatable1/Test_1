@@ -1,0 +1,26 @@
+---
+description: Ask for missing product details before adding items or rules
+alwaysApply: true
+---
+
+# Catalog Change Intake
+
+- Do not invent missing product behavior when adding a new log item or a new rule.
+- For a new log item, confirm:
+  - name
+  - why it matters
+  - fields to capture
+  - allowed values
+  - when users should log it
+  - whether it affects trends, summaries, reminders, or warnings
+  - one realistic example entry
+- For a new rule, confirm:
+  - rule name
+  - trigger condition
+  - time window
+  - required user or cat context
+  - user-facing output
+  - severity
+  - exceptions or edge cases
+- If required information is missing, ask follow-up questions before editing schema, UI, or logic.
+- Update `docs/log-catalog.md` or `docs/rule-catalog.md` before implementation.

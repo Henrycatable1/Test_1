@@ -1,0 +1,13 @@
+---
+description: Add purpose comments for meaningful code blocks
+alwaysApply: true
+---
+
+# Purpose Comments
+
+- When writing code, add a short purpose comment for most meaningful code blocks so human readers can quickly understand why the block exists.
+- Prefer section comments that visibly start with `###` inside the host language comment syntax, such as `// ### frame 13 color mapping` or `{/* ### warning feedback rule logic */}`.
+- Use these comments to explain purpose, intent, grouping, or domain meaning, not line-by-line mechanics.
+- Prioritize logic that a cofounder, reviewer, or future agent may not immediately recognize from the code alone.
+- Skip trivial or self-evident blocks where the comment would add noise.
+- Apply this standard both to repository code edits and to code snippets written in chat.

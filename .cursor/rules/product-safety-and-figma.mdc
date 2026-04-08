@@ -1,0 +1,14 @@
+---
+description: Product safety guardrails and Figma implementation guidance
+alwaysApply: true
+---
+
+# Product Safety And Figma
+
+- Keep feedback rules rules-based for MVP 1.0 unless the user explicitly changes product direction.
+- Do not add AI diagnosis or medical claims without explicit approval.
+- Prefer neutral phrasing such as `check in`, `follow up`, or `consider contacting your vet`.
+- Figma should refine visuals and UX structure, not override business rules, schema, or product logic.
+- When implementing from Figma, map designs into the existing feature and component structure instead of generating one-off fragments.
+- Reuse existing components and naming conventions whenever possible.
+- If a design conflicts with product logic or documented rules, preserve the documented product behavior and flag the mismatch.

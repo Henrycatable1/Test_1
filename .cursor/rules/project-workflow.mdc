@@ -1,0 +1,15 @@
+---
+description: Project workflow and document routing
+alwaysApply: true
+---
+
+# Project Workflow
+
+- Start with `README.md` to find the right docs for the task.
+- Before implementation, read `planning.md` and any relevant docs under `docs/`.
+- Treat `docs/log-catalog.md` as the source of truth for log items.
+- Treat `docs/rule-catalog.md` as the source of truth for reminders, feedback, and warning rules.
+- Follow a docs-first workflow: update canonical docs before changing schema, types, UI, or logic.
+- If code and docs disagree, align the docs first, then update the code.
+- Keep business logic out of page components when possible.
+- Add short `###` comments only for non-obvious intent, assumptions, or tricky behavior.
