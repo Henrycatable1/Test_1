@@ -1,3 +1,5 @@
+import type { Enums, Tables } from "@/types/supabase";
+
 export type LogItemId =
   | "food"
   | "activity"
@@ -10,73 +12,11 @@ export type CatProfile = {
   id: string;
   name: string;
   ageYears: number;
-  sex: "female" | "male" | "unknown";
+  sex: "female" | "male";
   breed: string;
   weightKg: number;
   personality: string;
-};
-
-export type FoodLogDetails = {
-  foodType: "dry" | "wet" | "treat" | "other";
-  amount: number;
-  unit: "g" | "cup" | "portion";
-  appetite: "normal" | "reduced" | "high";
-};
-
-export type ActivityLogDetails = {
-  energyLevel: "low" | "medium" | "high";
-  durationMinutes: number;
-  activityType: "play" | "sleep" | "zoomies" | "other";
-};
-
-export type AbnormalEventLogDetails = {
-  eventType: "vomiting" | "diarrhea" | "appetite_loss" | "other";
-  severity: "mild" | "moderate" | "high";
-  repeatedToday: boolean;
-};
-
-export type MedicationLogDetails = {
-  medicationName: string;
-  doseAmount: string;
-  status: "given" | "missed" | "delayed";
-};
-
-export type VetVisitLogDetails = {
-  clinicName: string;
-  reason: string;
-  followUpNeeded: boolean;
-};
-
-export type WeightLogDetails = {
-  weightKg: number;
-  scaleSource: "home" | "vet";
-};
-
-export type LogDetailsByType = {
-  food: FoodLogDetails;
-  activity: ActivityLogDetails;
-  abnormal_event: AbnormalEventLogDetails;
-  medication: MedicationLogDetails;
-  vet_visit: VetVisitLogDetails;
-  weight: WeightLogDetails;
-};
-
-export type LogEntry<T extends LogItemId = LogItemId> = {
-  id: string;
-  catId: string;
-  type: T;
-  occurredAt: string;
-  notes?: string;
-  details: LogDetailsByType[T];
-};
-
-export type MedicationPlan = {
-  id: string;
-  catId: string;
-  medicationName: string;
-  doseAmount: string;
-  dueLabel: string;
-  isActive: boolean;
+  underlyingHealthConditions: string[];
 };
 
 export type FollowUpTask = {
@@ -85,10 +25,38 @@ export type FollowUpTask = {
   detail: string;
   priority: "High" | "Medium" | "Low";
   relatedLogType?: LogItemId;
+  alertLevel?: Enums<"alert_level_type">;
 };
 
 export type DashboardMetric = {
   label: string;
   value: string;
   note: string;
+};
+
+export type AlertReviewState = {
+  isPending: boolean;
+  dueAt: string | null;
+  lastActivityAt: string | null;
+  lastError: string | null;
+};
+
+export type ActiveCatBundle = {
+  userId: string;
+  profile: Tables<"profiles"> | null;
+  cat: Tables<"cats"> | null;
+  dailyRecords: Tables<"daily_health_records">[];
+  vetVisits: Tables<"vet_visits">[];
+  alerts: Tables<"alerts">[];
+  feedbackMessages: Tables<"feedback_messages">[];
+  alertReview: AlertReviewState | null;
+};
+
+export type DashboardState = {
+  cat: CatProfile | null;
+  followUps: FollowUpTask[];
+  weeklyMetrics: DashboardMetric[];
+  topAction: FollowUpTask | null;
+  lastUpdatedLabel: string | null;
+  alertReview: AlertReviewState | null;
 };

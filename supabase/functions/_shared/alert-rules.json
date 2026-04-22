@@ -1,0 +1,654 @@
+{
+  "version": "1.0",
+  "single_metric_rules": [
+    {
+      "metric": "appetite_score",
+      "conditions": [
+        {
+          "rule_key": "appetite_score_value_2_day1",
+          "condition_key": "value_2",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": 2
+          }
+        },
+        {
+          "rule_key": "appetite_score_value_2_day2",
+          "condition_key": "value_2",
+          "level": "vet_recommended",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": 2
+          }
+        },
+        {
+          "rule_key": "appetite_score_value_1_day1",
+          "condition_key": "value_1",
+          "level": "emergency",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": 1
+          }
+        }
+      ]
+    },
+    {
+      "metric": "food_ratio",
+      "conditions": [
+        {
+          "rule_key": "food_ratio_ge_1_2_day1",
+          "condition_key": "ge_1.2",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "gte",
+            "value": 1.2
+          }
+        },
+        {
+          "rule_key": "food_ratio_range_0_5_0_8_day1",
+          "condition_key": "range_0.5_0.8",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "range",
+            "min_inclusive": 0.5,
+            "max_inclusive": 0.8
+          }
+        },
+        {
+          "rule_key": "food_ratio_range_0_5_0_8_day3",
+          "condition_key": "range_0.5_0.8",
+          "level": "vet_recommended",
+          "consecutive_days": 3,
+          "match": {
+            "type": "range",
+            "min_inclusive": 0.5,
+            "max_inclusive": 0.8
+          }
+        },
+        {
+          "rule_key": "food_ratio_lt_0_5_day1",
+          "condition_key": "lt_0.5",
+          "level": "vet_recommended",
+          "consecutive_days": 1,
+          "match": {
+            "type": "lt",
+            "value": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "metric": "water_intake",
+      "conditions": [
+        {
+          "rule_key": "water_intake_low_day1",
+          "condition_key": "low",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "low"
+          }
+        },
+        {
+          "rule_key": "water_intake_low_day2",
+          "condition_key": "low",
+          "level": "vet_recommended",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": "low"
+          }
+        },
+        {
+          "rule_key": "water_intake_high_day1",
+          "condition_key": "high",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "high"
+          }
+        },
+        {
+          "rule_key": "water_intake_high_day2",
+          "condition_key": "high",
+          "level": "vet_recommended",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": "high"
+          }
+        }
+      ]
+    },
+    {
+      "metric": "stool_condition",
+      "conditions": [
+        {
+          "rule_key": "stool_condition_soft_day1",
+          "condition_key": "soft",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "soft"
+          }
+        },
+        {
+          "rule_key": "stool_condition_soft_day3",
+          "condition_key": "soft",
+          "level": "vet_recommended",
+          "consecutive_days": 3,
+          "match": {
+            "type": "equals",
+            "value": "soft"
+          }
+        },
+        {
+          "rule_key": "stool_condition_watery_day1",
+          "condition_key": "watery",
+          "level": "vet_recommended",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "watery"
+          }
+        },
+        {
+          "rule_key": "stool_condition_watery_day2",
+          "condition_key": "watery",
+          "level": "emergency",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": "watery"
+          }
+        },
+        {
+          "rule_key": "stool_condition_constipated_day1",
+          "condition_key": "constipated",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "constipated"
+          }
+        },
+        {
+          "rule_key": "stool_condition_constipated_day3",
+          "condition_key": "constipated",
+          "level": "vet_recommended",
+          "consecutive_days": 3,
+          "match": {
+            "type": "equals",
+            "value": "constipated"
+          }
+        }
+      ]
+    },
+    {
+      "metric": "urine_times",
+      "conditions": [
+        {
+          "rule_key": "urine_times_less_than_2_day1",
+          "condition_key": "less_than_2",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "less_than_2"
+          }
+        },
+        {
+          "rule_key": "urine_times_less_than_2_day2",
+          "condition_key": "less_than_2",
+          "level": "vet_recommended",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": "less_than_2"
+          }
+        },
+        {
+          "rule_key": "urine_times_more_than_4_day1",
+          "condition_key": "more_than_4",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "more_than_4"
+          }
+        },
+        {
+          "rule_key": "urine_times_more_than_4_day2",
+          "condition_key": "more_than_4",
+          "level": "vet_recommended",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": "more_than_4"
+          }
+        }
+      ]
+    },
+    {
+      "metric": "activity_score",
+      "conditions": [
+        {
+          "rule_key": "activity_score_value_2_day1",
+          "condition_key": "value_2",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": 2
+          }
+        },
+        {
+          "rule_key": "activity_score_value_2_day2",
+          "condition_key": "value_2",
+          "level": "vet_recommended",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": 2
+          }
+        },
+        {
+          "rule_key": "activity_score_value_1_day1",
+          "condition_key": "value_1",
+          "level": "vet_recommended",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": 1
+          }
+        },
+        {
+          "rule_key": "activity_score_value_1_day2",
+          "condition_key": "value_1",
+          "level": "emergency",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": 1
+          }
+        }
+      ]
+    },
+    {
+      "metric": "resting_breath_rate",
+      "conditions": [
+        {
+          "rule_key": "resting_breath_rate_less_than_15_day1",
+          "condition_key": "less_than_15",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "less_than_15"
+          }
+        },
+        {
+          "rule_key": "resting_breath_rate_range_31_40_day1",
+          "condition_key": "range_31_40",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "range_31_40"
+          }
+        },
+        {
+          "rule_key": "resting_breath_rate_greater_than_40_day1",
+          "condition_key": "greater_than_40",
+          "level": "emergency",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "greater_than_40"
+          }
+        }
+      ]
+    },
+    {
+      "metric": "vomit_times",
+      "conditions": [
+        {
+          "rule_key": "vomit_times_1_day1",
+          "condition_key": "1",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": 1
+          }
+        },
+        {
+          "rule_key": "vomit_times_1_day2",
+          "condition_key": "1",
+          "level": "vet_recommended",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": 1
+          }
+        },
+        {
+          "rule_key": "vomit_times_gte2_day1",
+          "condition_key": "gte2",
+          "level": "vet_recommended",
+          "consecutive_days": 1,
+          "match": {
+            "type": "gte",
+            "value": 2
+          }
+        }
+      ]
+    },
+    {
+      "metric": "abnormal_behavior",
+      "conditions": [
+        {
+          "rule_key": "abnormal_behavior_true_day1",
+          "condition_key": "true",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": true
+          }
+        },
+        {
+          "rule_key": "abnormal_behavior_true_day2",
+          "condition_key": "true",
+          "level": "vet_recommended",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": true
+          }
+        }
+      ]
+    },
+    {
+      "metric": "gum_appearance",
+      "conditions": [
+        {
+          "rule_key": "gum_appearance_red_day1",
+          "condition_key": "red",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "red"
+          }
+        },
+        {
+          "rule_key": "gum_appearance_red_day7",
+          "condition_key": "red",
+          "level": "vet_recommended",
+          "consecutive_days": 7,
+          "match": {
+            "type": "equals",
+            "value": "red"
+          }
+        },
+        {
+          "rule_key": "gum_appearance_pale_day1",
+          "condition_key": "pale",
+          "level": "vet_recommended",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "pale"
+          }
+        },
+        {
+          "rule_key": "gum_appearance_foul_odor_day1",
+          "condition_key": "foul_odor",
+          "level": "vet_recommended",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "foul_odor"
+          }
+        }
+      ]
+    },
+    {
+      "metric": "medication_taken",
+      "conditions": [
+        {
+          "rule_key": "medication_taken_missed_day1",
+          "condition_key": "missed",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "equals",
+            "value": "missed"
+          }
+        },
+        {
+          "rule_key": "medication_taken_missed_day2",
+          "condition_key": "missed",
+          "level": "vet_recommended",
+          "consecutive_days": 2,
+          "match": {
+            "type": "equals",
+            "value": "missed"
+          }
+        },
+        {
+          "rule_key": "medication_taken_missed_day3",
+          "condition_key": "missed",
+          "level": "emergency",
+          "consecutive_days": 3,
+          "match": {
+            "type": "equals",
+            "value": "missed"
+          }
+        }
+      ]
+    },
+    {
+      "metric": "weight_change_percent",
+      "conditions": [
+        {
+          "rule_key": "weight_change_percent_loss_5_10_day1",
+          "condition_key": "loss_5_10",
+          "level": "vet_recommended",
+          "consecutive_days": 1,
+          "match": {
+            "type": "range",
+            "direction": "down",
+            "min_inclusive": 5,
+            "max_exclusive": 10
+          }
+        },
+        {
+          "rule_key": "weight_change_percent_loss_ge10_day1",
+          "condition_key": "loss_ge10",
+          "level": "emergency",
+          "consecutive_days": 1,
+          "match": {
+            "type": "gte",
+            "direction": "down",
+            "value": 10
+          }
+        },
+        {
+          "rule_key": "weight_change_percent_gain_ge10_day1",
+          "condition_key": "gain_ge10",
+          "level": "caution",
+          "consecutive_days": 1,
+          "match": {
+            "type": "gte",
+            "direction": "up",
+            "value": 10
+          }
+        },
+        {
+          "rule_key": "weight_change_percent_kitten_stagnant",
+          "condition_key": "kitten_stagnant",
+          "level": "vet_recommended",
+          "consecutive_days": 1,
+          "match": {
+            "type": "derived_kitten_stagnant",
+            "age_months_lt": 12,
+            "window_days": 30,
+            "net_change_percent_lte": 0
+          }
+        }
+      ]
+    }
+  ],
+  "combination_rules": [
+    {
+      "rule_key": "combination_appetite_activity",
+      "metric": "combination",
+      "condition_key": "combination_appetite_activity",
+      "level": "vet_recommended",
+      "window": "same_day",
+      "all_of": [
+        {
+          "metric": "appetite_score",
+          "condition_key": "value_2"
+        },
+        {
+          "metric": "activity_score",
+          "condition_key": "value_2"
+        }
+      ]
+    },
+    {
+      "rule_key": "combination_activity1_appetite2",
+      "metric": "combination",
+      "condition_key": "combination_activity1_appetite2",
+      "level": "emergency",
+      "window": "same_day",
+      "all_of": [
+        {
+          "metric": "activity_score",
+          "condition_key": "value_1"
+        },
+        {
+          "metric": "appetite_score",
+          "condition_key": "value_2"
+        }
+      ]
+    },
+    {
+      "rule_key": "combination_water_low_urine_low",
+      "metric": "combination",
+      "condition_key": "combination_water_low_urine_low",
+      "level": "vet_recommended",
+      "window": "same_day",
+      "all_of": [
+        {
+          "metric": "water_intake",
+          "condition_key": "low"
+        },
+        {
+          "metric": "urine_times",
+          "condition_key": "less_than_2"
+        }
+      ]
+    },
+    {
+      "rule_key": "combination_water_high_urine_high",
+      "metric": "combination",
+      "condition_key": "combination_water_high_urine_high",
+      "level": "vet_recommended",
+      "window": "same_day",
+      "all_of": [
+        {
+          "metric": "water_intake",
+          "condition_key": "high"
+        },
+        {
+          "metric": "urine_times",
+          "condition_key": "more_than_4"
+        }
+      ]
+    },
+    {
+      "rule_key": "combination_watery_stool_vomit",
+      "metric": "combination",
+      "condition_key": "combination_watery_stool_vomit",
+      "level": "emergency",
+      "window": "same_day",
+      "all_of": [
+        {
+          "metric": "stool_condition",
+          "condition_key": "watery"
+        },
+        {
+          "metric": "vomit_times",
+          "condition_key": "gte2"
+        }
+      ]
+    },
+    {
+      "rule_key": "combination_breath_fast_activity_low",
+      "metric": "combination",
+      "condition_key": "combination_breath_fast_activity_low",
+      "level": "emergency",
+      "window": "same_day",
+      "all_of": [
+        {
+          "metric": "resting_breath_rate",
+          "condition_key": "greater_than_40"
+        },
+        {
+          "metric": "activity_score",
+          "condition_key": "value_1"
+        }
+      ]
+    }
+  ],
+  "weight_reminder": {
+    "rule_key": "weight_reminder_default",
+    "metric": "weight_reminder",
+    "condition_key": "weigh_every_30_days",
+    "level": "caution",
+    "interval_days": 30,
+    "trigger_rule_keys": [
+      "appetite_score_value_2_day2",
+      "vomit_times_gte2_day1",
+      "activity_score_value_2_day2",
+      "stool_condition_watery_day2"
+    ],
+    "trigger_conditions": [
+      {
+        "rule_key": "weight_reminder_water_high_urine_high_day2",
+        "window": "same_day",
+        "consecutive_days": 2,
+        "all_of": [
+          {
+            "metric": "water_intake",
+            "condition_key": "high"
+          },
+          {
+            "metric": "urine_times",
+            "condition_key": "more_than_4"
+          }
+        ]
+      }
+    ]
+  },
+  "vet_visit_reminder": {
+    "rule_key": "vet_visit_reminder_annual",
+    "metric": "vet_visit_reminder",
+    "condition_key": "overdue_annual_check",
+    "level": "caution",
+    "interval_days": 365
+  }
+}

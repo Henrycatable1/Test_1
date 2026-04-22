@@ -1,5 +1,7 @@
 "use client";
 
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 const defaultValues = {
@@ -12,17 +14,89 @@ const defaultValues = {
 };
 
 export function OnboardingForm() {
+  const router = useRouter();
   const [values, setValues] = useState(defaultValues);
+  const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const supabase = getSupabaseBrowserClient();
+
+    if (!supabase) {
+      setError("Supabase is not configured in the local app environment.");
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    setSaved(false);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      setError(userError.message);
+      setIsSaving(false);
+      return;
+    }
+
+    if (!user) {
+      setError("Sign in before creating a cat profile.");
+      setIsSaving(false);
+      return;
+    }
+
+    const payload = {
+      owner_user_id: user.id,
+      name: values.name.trim(),
+      age_months: Math.max(0, Math.round(Number(values.ageYears) * 12)),
+      gender: values.sex as "male" | "female" | "neutered_male" | "neutered_female",
+      breed: values.breed.trim() || null,
+      initial_weight_kg: Number(values.weightKg),
+      personality: values.personality.trim() || null,
+      underlying_health_conditions: [] as string[],
+    };
+
+    const { data: existingCats, error: catLookupError } = await supabase
+      .from("cats")
+      .select("id")
+      .eq("owner_user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (catLookupError) {
+      setError(catLookupError.message);
+      setIsSaving(false);
+      return;
+    }
+
+    const existingCatId = existingCats?.[0]?.id;
+    const mutation = existingCatId
+      ? supabase.from("cats").update(payload).eq("id", existingCatId)
+      : supabase.from("cats").insert(payload);
+    const { error: saveError } = await mutation;
+
+    if (saveError) {
+      setError(saveError.message);
+      setIsSaving(false);
+      return;
+    }
+
+    setSaved(true);
+    setIsSaving(false);
+    router.push("/dashboard");
+    router.refresh();
+  }
 
   return (
     <form
       className="space-y-5"
-      onSubmit={(event) => {
-        event.preventDefault();
-        window.localStorage.setItem("cat-health-demo-profile", JSON.stringify(values));
-        setSaved(true);
-      }}
+      onSubmit={handleSubmit}
     >
       <div className="grid gap-5 md:grid-cols-2">
         <label className="block">
@@ -70,7 +144,8 @@ export function OnboardingForm() {
           >
             <option value="female">Female</option>
             <option value="male">Male</option>
-            <option value="unknown">Unknown</option>
+            <option value="neutered_female">Neutered female</option>
+            <option value="neutered_male">Neutered male</option>
           </select>
         </label>
 
@@ -126,19 +201,27 @@ export function OnboardingForm() {
       </label>
 
       <div className="rounded-[24px] border-4 border-neutral-900 bg-white/75 p-4 text-sm font-medium leading-6 text-neutral-800 shadow-[5px_5px_0_0_#171717]">
-        ### Demo note
-        <br />
-        Until Supabase keys are added, this form saves to `localStorage` so the
-        onboarding flow can be reviewed without backend setup.
+        <p className="font-black uppercase tracking-[0.16em] text-neutral-700">
+          Live cat profile
+        </p>
+        <p className="mt-2">
+          This onboarding flow writes directly to the real `cats` table for the
+          signed-in owner.
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-4">
-        <button className="cta-button" type="submit">
-          Save cat profile
+        <button className="cta-button" disabled={isSaving} type="submit">
+          {isSaving ? "Saving profile..." : "Save cat profile"}
         </button>
         {saved ? (
           <p className="rounded-full border-4 border-neutral-900 bg-emerald-200 px-4 py-2 text-sm font-black text-neutral-900 shadow-[4px_4px_0_0_#171717]">
-            Saved in demo mode. Next step: connect Supabase auth and cats table.
+            Saved to Supabase. Redirecting to the live dashboard.
+          </p>
+        ) : null}
+        {error ? (
+          <p className="rounded-[20px] border-4 border-neutral-900 bg-rose-100 px-4 py-2 text-sm font-medium text-neutral-900 shadow-[4px_4px_0_0_#171717]">
+            {error}
           </p>
         ) : null}
       </div>

@@ -1,0 +1,11 @@
+-- Superseded by `20260408_initial_schema.sql`.
+--
+-- The bootstrap migration now creates the CATable schema directly, including:
+-- - `cats.underlying_health_conditions`
+-- - alert tables
+-- - collaboration tables
+-- - notification preference tables
+--
+-- This migration is intentionally left as a no-op so the historical filename
+-- remains valid without reintroducing assumptions from the retired prototype
+-- schema.

@@ -34,10 +34,20 @@ This file defines the required process for adding or changing log items, feedbac
 5. Add or update tests or example scenarios.
 6. Update `docs/agent-handoff.md` if assumptions changed.
 
+## For Updating Existing Alert Rules Reliably
+1. Update the plain-English product intent in `docs/rule-catalog.md`.
+2. Update the machine-readable logic in `docs/alert_rules.json`.
+3. Sync the runtime copy in `supabase/functions/_shared/alert-rules.json`.
+   - preferred command: `npm run sync:alert-rules`
+4. Update any affected user-facing alert copy if needed.
+5. Test the changed scenarios with representative seeded records.
+6. Update `planning.md` or `docs/agent-handoff.md` if the change affects roadmap, live behavior, or operational assumptions.
+
 ## Do Not Skip
 - Do not add undocumented fields directly to code.
 - Do not add undocumented rules directly to code.
 - Do not infer medical product behavior without confirming with the user.
+- Do not treat `supabase/functions/_shared/alert-rules.json` as the authored source of truth.
 
 ## Review Checklist
 - Docs updated first
@@ -46,3 +56,4 @@ This file defines the required process for adding or changing log items, feedbac
 - Logic aligned with docs
 - Tests/examples aligned with docs
 - Agent handoff updated if needed
+- `docs/alert_rules.json` synced to the function runtime copy if rules changed

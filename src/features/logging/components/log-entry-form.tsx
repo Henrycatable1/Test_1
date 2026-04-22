@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { logFormConfig } from "@/features/logging/config/logging-config";
+import { saveLogEntry } from "@/features/logging/lib/logging-writes";
 import type { LogItemId } from "@/types/domain";
 
 type LogEntryFormProps = {
@@ -18,8 +20,12 @@ function getDefaultTimestamp() {
 }
 
 export function LogEntryForm({ category }: LogEntryFormProps) {
+  const router = useRouter();
   const config = logFormConfig[category];
-  const [savedPayload, setSavedPayload] = useState<string | null>(null);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const initialValues = useMemo(() => {
     return config.fields.reduce<Record<string, string | boolean>>((acc, field) => {
@@ -44,7 +50,7 @@ export function LogEntryForm({ category }: LogEntryFormProps) {
     <div className="space-y-5">
       <div>
         <p className="text-sm font-black uppercase tracking-[0.18em] text-neutral-700">
-          Typed form scaffold
+          Daily health logging
         </p>
         <h2 className="mt-2 text-3xl font-black text-neutral-900">{config.title}</h2>
         <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-neutral-800">
@@ -54,18 +60,23 @@ export function LogEntryForm({ category }: LogEntryFormProps) {
 
       <form
         className="space-y-5"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
-          setSavedPayload(
-            JSON.stringify(
-              {
-                type: category,
-                values,
-              },
-              null,
-              2,
-            ),
-          );
+          setIsSaving(true);
+          setErrorMessage(null);
+          setSavedMessage(null);
+          setReviewMessage(null);
+
+          try {
+            const result = await saveLogEntry(category, values);
+            setSavedMessage(result.message);
+            setReviewMessage(result.reviewMessage);
+            router.refresh();
+          } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : "Failed to save the log.");
+          } finally {
+            setIsSaving(false);
+          }
         }}
       >
         <div className="grid gap-4 md:grid-cols-2">
@@ -152,20 +163,30 @@ export function LogEntryForm({ category }: LogEntryFormProps) {
         </div>
 
         <div className="flex flex-wrap gap-4">
-          <button className="cta-button" type="submit">
-            Save demo log
+          <button className="cta-button" disabled={isSaving} type="submit">
+            {isSaving ? "Saving..." : category === "vet_visit" ? "Save vet visit" : "Save daily record"}
           </button>
         </div>
       </form>
 
-      {savedPayload ? (
+      {savedMessage ? (
         <div className="rounded-[24px] border-4 border-neutral-900 bg-white/75 p-4 shadow-[5px_5px_0_0_#171717]">
           <p className="text-sm font-black uppercase tracking-[0.16em] text-neutral-700">
-            Preview payload
+            Saved
           </p>
-          <pre className="mt-3 overflow-x-auto text-sm font-medium text-neutral-900">
-            {savedPayload}
-          </pre>
+          <p className="mt-3 text-sm font-medium leading-6 text-neutral-900">{savedMessage}</p>
+          {reviewMessage ? (
+            <p className="mt-3 text-sm font-medium leading-6 text-neutral-700">{reviewMessage}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {errorMessage ? (
+        <div className="rounded-[24px] border-4 border-neutral-900 bg-rose-100 p-4 shadow-[5px_5px_0_0_#171717]">
+          <p className="text-sm font-black uppercase tracking-[0.16em] text-neutral-700">
+            Save failed
+          </p>
+          <p className="mt-3 text-sm font-medium leading-6 text-neutral-900">{errorMessage}</p>
         </div>
       ) : null}
     </div>

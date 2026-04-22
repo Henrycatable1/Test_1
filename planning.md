@@ -1,7 +1,7 @@
 # Execution Planning
 
 ## Current Goal
-Build MVP 1.0 of the cat health log web app in a way that is fast to validate, easy to review, and easy for future agents to extend safely.
+Finish MVP 1.0 user value on top of the live Supabase stack, with real cat states, trends, and email alerts already wired end to end.
 
 ## Execution Order
 1. Scaffold the web app with `Next.js + TypeScript + Tailwind`.
@@ -22,12 +22,18 @@ Build MVP 1.0 of the cat health log web app in a way that is fast to validate, e
 10. Add export for vet sharing.
 
 ## Immediate Next Build Sprint
-1. Scaffold the app and shared project structure.
-2. Add docs under `docs/`.
-3. Set up Supabase auth and base schema.
-4. Build onboarding for a single user and a single cat.
-5. Build the generic log model and first 3 log types.
-6. Build a simple rules-based dashboard prompt system.
+1. Define and implement daily aggregation behavior for multiple quick-log categories so same-day submissions either accumulate or resolve to one daily value correctly inside `daily_health_record`.
+2. Monitor the first real-user runs of the debounced alert workflow in Supabase logs.
+3. Improve user-facing cat state summaries and trend presentation.
+4. Tighten any remaining alert-worker observability if live debugging needs it.
+5. Continue polishing onboarding, logging, dashboard, and profile UX on top of live Supabase data.
+
+## Recently Completed
+- Deployed `check-alerts`, `send-alert-digests`, and `process-pending-alert-checks` to Supabase.
+- Added the server-side debounce queue via `cat_alert_evaluation_queue`.
+- Switched log saves away from direct `check-alerts` invocation and into queued evaluation.
+- Added review-pending messaging in the logging flow, dashboard, and profile views.
+- Validated burst logging, delayed evaluation, digest delivery, and emergency delivery end to end against the live project.
 
 ## Working Rules For Execution
 - Start with `README.md` for document routing.
@@ -37,12 +43,12 @@ Build MVP 1.0 of the cat health log web app in a way that is fast to validate, e
 - Keep comments focused on intent and assumptions, not obvious code behavior.
 
 ## Ready-To-Implement Areas
-- App scaffold
-- Auth
-- Cat profile onboarding
-- Base data model
-- Initial log flows
-- Initial rules engine
+- Supabase-backed onboarding
+- Cat profile CRUD
+- Daily health record CRUD
+- Vet visit CRUD
+- Alert evaluation and delivery wiring
+- Dashboard data integration
 
 ## Deferred Until After MVP Validation
 - Multiple users per cat

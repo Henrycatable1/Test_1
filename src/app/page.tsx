@@ -16,15 +16,16 @@ export default function HomePage() {
     <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
       <section className="paper-card px-6 py-8 sm:px-8">
         <p className="text-sm font-black uppercase tracking-[0.22em] text-neutral-700">
-          Web MVP foundation
+          Web MVP
         </p>
         <h2 className="mt-3 max-w-3xl text-4xl font-black leading-tight text-neutral-900 sm:text-5xl">
-          Build a cat care app that feels warm, fast, and easy to update.
+          Track your cat&apos;s health with a flow that feels warm, fast, and easy to use.
         </h2>
         <p className="mt-5 max-w-2xl text-base font-medium leading-7 text-neutral-800">
-          This scaffold sets up the product direction from the docs: fast
-          onboarding, guided logging, clear follow-up prompts, and a future-ready
-          structure for Supabase, reports, and Figma-driven UI refinement.
+          The current app already supports live onboarding, quick logging, and
+          dashboard follow-ups on top of Supabase. The next product step is
+          turning that working foundation into a complete MVP with stronger
+          trends, summaries, and sharing.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-4">
@@ -68,9 +69,8 @@ export default function HomePage() {
             Playful logging, not clinical data entry
           </h3>
           <p className="mt-4 text-sm font-medium leading-6 text-neutral-800">
-            The first quick-log screen borrows from your reference image:
-            pastel cards, chunky outlines, and a clear action button that feels
-            inviting on mobile.
+            The quick-log flow uses warm colors, chunky outlines, and a clear
+            mobile-first call to action so health tracking feels approachable.
           </p>
         </div>
 
@@ -80,12 +80,12 @@ export default function HomePage() {
           </p>
           <div className="mt-4 rounded-[24px] border-4 border-neutral-900 bg-white/75 p-4 shadow-[5px_5px_0_0_#171717]">
             <p className="text-lg font-black text-neutral-900">
-              {supabaseReady ? "Supabase env detected" : "Running in demo mode"}
+              {supabaseReady ? "Supabase env detected" : "Supabase env missing"}
             </p>
             <p className="mt-2 text-sm font-medium leading-6 text-neutral-800">
               {supabaseReady
-                ? "You can now begin wiring auth, profile writes, and log inserts to your real Supabase project."
-                : "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to start using real auth and data."}
+                ? "Auth, cat profile writes, logging, and dashboard reads can run against the live Supabase project."
+                : "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable live auth and data."}
             </p>
           </div>
         </div>
