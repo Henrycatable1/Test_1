@@ -1,17 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getSupabaseEnv } from "@/lib/env";
 import type { Database } from "@/types/supabase";
 
 function toSafeNextPath(input: string | null) {
-  if (!input || !input.startsWith("/")) {
+  const normalizedInput = input?.trim() ?? null;
+
+  if (!normalizedInput || !normalizedInput.startsWith("/")) {
     return "/dashboard";
   }
 
-  return input;
+  return normalizedInput;
 }
 
 export async function GET(request: Request) {
@@ -20,10 +22,13 @@ export async function GET(request: Request) {
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const otpType = requestUrl.searchParams.get("type");
   const nextPath = toSafeNextPath(requestUrl.searchParams.get("next"));
-  const redirectUrl = new URL(nextPath, requestUrl.origin);
+  const headerStore = await headers();
+  const requestHost = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
+  const requestProtocol = headerStore.get("x-forwarded-proto") ?? requestUrl.protocol.replace(":", "");
+  const requestOrigin = requestHost ? `${requestProtocol}://${requestHost}` : requestUrl.origin;
+  const redirectUrl = new URL(nextPath, requestOrigin);
   const response = NextResponse.redirect(redirectUrl);
-  const baseAuthErrorUrl = new URL("/signin", requestUrl.origin);
-  baseAuthErrorUrl.searchParams.set("auth_error", "1");
+  const authErrorBaseUrl = new URL("/signin?auth_error=1", requestOrigin);
 
   const cookieStore = await cookies();
   const { url, anonKey } = getSupabaseEnv();
@@ -79,13 +84,13 @@ export async function GET(request: Request) {
     }
 
     if (!finalized) {
-      const missingTokenUrl = new URL(baseAuthErrorUrl);
+      const missingTokenUrl = new URL(authErrorBaseUrl);
       missingTokenUrl.searchParams.set("reason", "missing_token");
       return NextResponse.redirect(missingTokenUrl);
     }
     return response;
   } catch {
-    const invalidTokenUrl = new URL(baseAuthErrorUrl);
+    const invalidTokenUrl = new URL(authErrorBaseUrl);
     invalidTokenUrl.searchParams.set("reason", "invalid_or_expired");
 
     // ### route callback failures to sign-in with explicit feedback instead of silently landing without a session
