@@ -1,8 +1,12 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LogItemId } from "@/types/domain";
-import type { TablesInsert, TablesUpdate } from "@/types/supabase";
+import type { Tables, TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
+type ExistingDailyRecord = Pick<
+  Tables<"daily_health_records">,
+  "abnormal_behavior_note" | "food_amount_grams" | "food_type" | "notes" | "vomit_times"
+>;
 
 function getRecordDateParts(occurredAt: string) {
   const date = new Date(occurredAt);
@@ -31,6 +35,21 @@ function appendNotes(...parts: Array<string | null | undefined>) {
     .map((part) => part?.trim())
     .filter(Boolean)
     .join("\n");
+}
+
+function mergeTextBlocks(existing: string | null | undefined, next: string | null | undefined) {
+  const existingText = existing?.trim();
+  const nextText = next?.trim();
+
+  if (!existingText) {
+    return nextText || null;
+  }
+
+  if (!nextText || existingText === nextText) {
+    return existingText;
+  }
+
+  return `${existingText}\n${nextText}`;
 }
 
 function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -78,9 +97,7 @@ function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_recor
 function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_records"> {
   const eventType = typeof values.eventType === "string" ? values.eventType : "other";
   const repeated = values.repeatedToday === true;
-
-  return {
-    vomit_times: eventType === "vomiting" ? (repeated ? 2 : 1) : 0,
+  const update: TablesUpdate<"daily_health_records"> = {
     abnormal_behavior: true,
     abnormal_behavior_note:
       appendNotes(
@@ -95,6 +112,12 @@ function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_recor
         eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
       ) || null,
   };
+
+  if (eventType === "vomiting") {
+    update.vomit_times = repeated ? 2 : 1;
+  }
+
+  return update;
 }
 
 function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -144,6 +167,52 @@ function mapDailyRecordValues(
     case "weight":
       return mapWeightValues(values);
   }
+}
+
+function mergeSameDayDailyRecordUpdate(
+  category: Exclude<LogItemId, "vet_visit">,
+  nextUpdate: TablesUpdate<"daily_health_records">,
+  existingRecord: ExistingDailyRecord | null,
+) {
+  if (!existingRecord) {
+    return nextUpdate;
+  }
+
+  const mergedUpdate = { ...nextUpdate };
+
+  if ("notes" in nextUpdate) {
+    mergedUpdate.notes = mergeTextBlocks(existingRecord.notes, nextUpdate.notes);
+  }
+
+  if ("abnormal_behavior_note" in nextUpdate) {
+    mergedUpdate.abnormal_behavior_note = mergeTextBlocks(
+      existingRecord.abnormal_behavior_note,
+      nextUpdate.abnormal_behavior_note,
+    );
+  }
+
+  if (category === "food") {
+    // ### same-day food logs are additive while unsupported food types stay preserved in notes
+    if (typeof nextUpdate.food_amount_grams === "number") {
+      mergedUpdate.food_amount_grams = (existingRecord.food_amount_grams ?? 0) + nextUpdate.food_amount_grams;
+    } else if (existingRecord.food_amount_grams !== null) {
+      delete mergedUpdate.food_amount_grams;
+    }
+
+    if (nextUpdate.food_type === null && existingRecord.food_type !== null) {
+      delete mergedUpdate.food_type;
+    }
+  }
+
+  if (category === "abnormal_event" && typeof nextUpdate.vomit_times === "number") {
+    // ### repeated-today means at least two, while separate single-vomit logs add to the daily count
+    mergedUpdate.vomit_times =
+      nextUpdate.vomit_times === 1
+        ? existingRecord.vomit_times + 1
+        : Math.max(existingRecord.vomit_times, nextUpdate.vomit_times);
+  }
+
+  return mergedUpdate;
 }
 
 function getReviewMessage(catId: string) {
@@ -226,12 +295,24 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
   }
 
   const baseUpdate = mapDailyRecordValues(category, values as FormValues);
+  const { data: existingRecord, error: existingRecordError } = await supabase
+    .from("daily_health_records")
+    .select("abnormal_behavior_note, food_amount_grams, food_type, notes, vomit_times")
+    .eq("cat_id", catId)
+    .eq("record_date", recordDate)
+    .maybeSingle();
+
+  if (existingRecordError) {
+    throw existingRecordError;
+  }
+
+  const mergedUpdate = mergeSameDayDailyRecordUpdate(category, baseUpdate, existingRecord);
   const upsertPayload: TablesInsert<"daily_health_records"> = {
     cat_id: catId,
     created_by: user.id,
     record_date: recordDate,
     feeding_time: category === "food" ? time : undefined,
-    ...baseUpdate,
+    ...mergedUpdate,
   };
 
   const { error: recordError } = await supabase
