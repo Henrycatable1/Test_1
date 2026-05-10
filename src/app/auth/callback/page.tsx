@@ -5,6 +5,7 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { toSafeNextPath } from "@/lib/auth-redirects";
 
 const supportedOtpTypes = new Set<EmailOtpType>([
   "signup",
@@ -14,14 +15,6 @@ const supportedOtpTypes = new Set<EmailOtpType>([
   "email_change",
   "email",
 ]);
-
-function toSafeNextPath(input: string | null) {
-  if (!input || !input.startsWith("/")) {
-    return "/dashboard";
-  }
-
-  return input;
-}
 
 export default function AuthCallbackPage() {
   const router = useRouter();
