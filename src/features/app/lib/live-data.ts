@@ -9,6 +9,7 @@ import type {
   LogItemId,
 } from "@/types/domain";
 import type { Enums, Tables } from "@/types/supabase";
+import { mapCatGenderToSex } from "./cat-profile";
 
 const alertRank: Record<Enums<"alert_level_type">, number> = {
   emergency: 3,
@@ -44,7 +45,7 @@ export function mapCatRowToProfile(cat: Tables<"cats">): CatProfile {
     id: cat.id,
     name: cat.name,
     ageYears: getAgeYears(cat.age_months),
-    sex: cat.gender.includes("male") ? "male" : "female",
+    sex: mapCatGenderToSex(cat.gender),
     breed: cat.breed ?? "Unknown breed",
     weightKg: cat.initial_weight_kg,
     personality: cat.personality ?? "No personality notes yet.",
