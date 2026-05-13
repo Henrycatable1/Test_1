@@ -25,14 +25,21 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const workerBatchSize = 20;
 const retryDelayMs = 30_000;
+const staleClaimMs = 5 * 60_000;
 const checkAlertsUrl = `${supabaseUrl}/functions/v1/check-alerts`;
 
+function getStaleClaimCutoff(referenceTime: string) {
+  return new Date(new Date(referenceTime).getTime() - staleClaimMs).toISOString();
+}
+
 async function loadDueRows(referenceTime: string) {
+  const staleClaimCutoff = getStaleClaimCutoff(referenceTime);
   const { data, error } = await admin
     .from("cat_alert_evaluation_queue")
     .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
     .lte("due_at", referenceTime)
-    .is("processing_started_at", null)
+    // ### recover rows claimed by a worker that crashed before clearing its claim
+    .or(`processing_started_at.is.null,processing_started_at.lt.${staleClaimCutoff}`)
     .order("due_at", { ascending: true })
     .limit(workerBatchSize);
 
@@ -46,6 +53,7 @@ async function loadDueRows(referenceTime: string) {
 // ### claim each row defensively so overlapping worker runs do not process the same cat twice
 async function claimRow(row: QueueRow, referenceTime: string) {
   const claimedAt = new Date().toISOString();
+  const staleClaimCutoff = getStaleClaimCutoff(referenceTime);
   const { data, error } = await admin
     .from("cat_alert_evaluation_queue")
     .update({
@@ -55,7 +63,7 @@ async function claimRow(row: QueueRow, referenceTime: string) {
     })
     .eq("cat_id", row.cat_id)
     .eq("activity_version", row.activity_version)
-    .is("processing_started_at", null)
+    .or(`processing_started_at.is.null,processing_started_at.lt.${staleClaimCutoff}`)
     .lte("due_at", referenceTime)
     .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
     .maybeSingle();

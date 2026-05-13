@@ -126,24 +126,30 @@ serve(async () => {
     let skipped = 0;
 
     for (const [userId, userDeliveries] of deliveriesByUser.entries()) {
+      // ### digest processing must not mutate emergency or otherwise ineligible delivery rows
+      const digestDeliveries = userDeliveries.filter((delivery) => alertMap.has(delivery.alert_id));
+      const digestDeliveryIds = digestDeliveries.map((delivery) => delivery.id);
+
+      if (digestDeliveries.length === 0) {
+        continue;
+      }
+
       const profile = profileMap.get(userId);
 
       if (!profile?.email) {
-        const deliveryIds = userDeliveries.map((delivery) => delivery.id);
-
         await admin
           .from("alert_deliveries")
           .update({
             delivery_status: "skipped",
             error_message: "No email address on profile.",
           })
-          .in("id", deliveryIds);
+          .in("id", digestDeliveryIds);
 
-        skipped += deliveryIds.length;
+        skipped += digestDeliveryIds.length;
         continue;
       }
 
-      const digestAlerts = userDeliveries
+      const digestAlerts = digestDeliveries
         .map((delivery) => alertMap.get(delivery.alert_id))
         .filter((alert): alert is AlertRow => Boolean(alert));
 
@@ -154,9 +160,9 @@ serve(async () => {
             delivery_status: "skipped",
             error_message: "No eligible non-emergency alerts were available for digest delivery.",
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", digestDeliveryIds);
 
-        skipped += userDeliveries.length;
+        skipped += digestDeliveryIds.length;
         continue;
       }
 
@@ -175,9 +181,9 @@ serve(async () => {
             delivery_status: "sent",
             delivered_at: new Date().toISOString(),
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", digestDeliveryIds);
 
-        sent += userDeliveries.length;
+        sent += digestDeliveryIds.length;
       } catch (error) {
         await admin
           .from("alert_deliveries")
@@ -185,7 +191,7 @@ serve(async () => {
             delivery_status: "failed",
             error_message: error instanceof Error ? error.message : String(error),
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", digestDeliveryIds);
       }
     }
 

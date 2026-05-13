@@ -4,17 +4,8 @@ import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getSupabaseEnv } from "@/lib/env";
+import { toSafeNextPath } from "@/lib/navigation";
 import type { Database } from "@/types/supabase";
-
-function toSafeNextPath(input: string | null) {
-  const normalizedInput = input?.trim() ?? null;
-
-  if (!normalizedInput || !normalizedInput.startsWith("/")) {
-    return "/dashboard";
-  }
-
-  return normalizedInput;
-}
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
