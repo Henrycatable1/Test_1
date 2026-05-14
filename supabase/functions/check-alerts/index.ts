@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { rulesConfig, type AlertLevel, type CombinationClause, type MatchRule, type SingleMetricCondition } from "../_shared/alert-rules.ts";
 import { sendEmail } from "../_shared/email.ts";
+import { authorizeServiceRoleRequest } from "../_shared/service-role-auth.ts";
 
 type CatRow = {
   id: string;
@@ -578,12 +579,11 @@ async function fetchRecipients(cat: CatRow) {
   }));
 }
 
-async function deactivatePreviousAlerts(catId: string, latestDate: string) {
+async function deactivateActiveAlerts(catId: string) {
   const { error } = await admin
     .from("alerts")
     .update({ is_active: false })
     .eq("cat_id", catId)
-    .lt("alert_date", latestDate)
     .eq("is_active", true);
 
   if (error) {
@@ -710,6 +710,23 @@ async function sendEmergencyEmails(
     }
 
     try {
+      const { data: pendingDelivery, error: pendingDeliveryError } = await admin
+        .from("alert_deliveries")
+        .select("id")
+        .eq("alert_id", preferredAlert.id)
+        .eq("user_id", recipient.user_id)
+        .eq("channel", "email")
+        .eq("delivery_status", "pending")
+        .maybeSingle();
+
+      if (pendingDeliveryError) {
+        throw pendingDeliveryError;
+      }
+
+      if (!pendingDelivery) {
+        continue;
+      }
+
       const subject =
         recipient.language_code === "zh-TW"
           ? "CATable 緊急提醒"
@@ -732,9 +749,7 @@ async function sendEmergencyEmails(
           delivery_status: "sent",
           delivered_at: new Date().toISOString(),
         })
-        .eq("alert_id", preferredAlert.id)
-        .eq("user_id", recipient.user_id)
-        .eq("channel", "email");
+        .eq("id", pendingDelivery.id);
     } catch (error) {
       await admin
         .from("alert_deliveries")
@@ -817,7 +832,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
   if (events.length === 0) {
     if (!dryRun) {
-      await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+      await deactivateActiveAlerts(cat.id);
     }
 
     return {
@@ -836,7 +851,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     };
   }
 
-  await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+  await deactivateActiveAlerts(cat.id);
 
   for (const event of events) {
     const alertVariants = await upsertAlertVariants(cat.id, event, latestRecord.id, messageMap);
@@ -856,6 +871,12 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 }
 
 serve(async (request) => {
+  const unauthorizedResponse = authorizeServiceRoleRequest(request, serviceRoleKey);
+
+  if (unauthorizedResponse) {
+    return unauthorizedResponse;
+  }
+
   try {
     const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
     const dryRun = Boolean(body.dryRun);

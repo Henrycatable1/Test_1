@@ -16,11 +16,14 @@ const supportedOtpTypes = new Set<EmailOtpType>([
 ]);
 
 function toSafeNextPath(input: string | null) {
-  if (!input || !input.startsWith("/")) {
+  const normalizedInput = input?.trim() ?? null;
+
+  // ### keep post-auth redirects inside this app, including protocol-relative URL attempts
+  if (!normalizedInput || !normalizedInput.startsWith("/") || normalizedInput.startsWith("//") || normalizedInput.includes("\\")) {
     return "/dashboard";
   }
 
-  return input;
+  return normalizedInput;
 }
 
 export default function AuthCallbackPage() {

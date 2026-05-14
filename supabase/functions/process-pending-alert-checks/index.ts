@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { authorizeServiceRoleRequest } from "../_shared/service-role-auth.ts";
+
 type QueueRow = {
   cat_id: string;
   due_at: string;
@@ -106,6 +108,7 @@ async function clearClaim(catId: string, lastError: string | null) {
 }
 
 async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
+  const claimedVersion = row.processing_version ?? row.activity_version;
   const { data: currentRow, error: currentError } = await admin
     .from("cat_alert_evaluation_queue")
     .select("cat_id, activity_version")
@@ -120,7 +123,7 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
     return;
   }
 
-  const hasNewerActivity = currentRow.activity_version !== row.processing_version;
+  const hasNewerActivity = currentRow.activity_version !== claimedVersion;
 
   if (hasNewerActivity) {
     await clearClaim(row.cat_id, errorMessage);
@@ -129,7 +132,7 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
 
   if (errorMessage) {
     const retryAt = new Date(Date.now() + retryDelayMs).toISOString();
-    const { error } = await admin
+    const { data, error } = await admin
       .from("cat_alert_evaluation_queue")
       .update({
         due_at: retryAt,
@@ -138,27 +141,43 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
         last_error: errorMessage,
       })
       .eq("cat_id", row.cat_id)
-      .eq("activity_version", row.processing_version ?? row.activity_version);
+      .eq("activity_version", claimedVersion)
+      .select("cat_id");
 
     if (error) {
       throw error;
     }
 
+    if ((data ?? []).length === 0) {
+      await clearClaim(row.cat_id, errorMessage);
+    }
+
     return;
   }
 
-  const { error } = await admin
+  const { data, error } = await admin
     .from("cat_alert_evaluation_queue")
     .delete()
     .eq("cat_id", row.cat_id)
-    .eq("activity_version", row.processing_version ?? row.activity_version);
+    .eq("activity_version", claimedVersion)
+    .select("cat_id");
 
   if (error) {
     throw error;
   }
+
+  if ((data ?? []).length === 0) {
+    await clearClaim(row.cat_id, null);
+  }
 }
 
-serve(async () => {
+serve(async (request) => {
+  const unauthorizedResponse = authorizeServiceRoleRequest(request, serviceRoleKey);
+
+  if (unauthorizedResponse) {
+    return unauthorizedResponse;
+  }
+
   try {
     const referenceTime = new Date().toISOString();
     const dueRows = await loadDueRows(referenceTime);
