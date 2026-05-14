@@ -466,6 +466,8 @@ Example shape:
 ## Edge Functions
 Implement the alert workflow in Edge Functions, not in client code and not in heavy SQL triggers.
 
+All alert workflow Edge Functions use service-role database access and must reject public anon or user-session callers at the function boundary. Scheduled database invocations should send the Supabase service role key from Vault as the bearer token; browser clients must never invoke these functions directly.
+
 ### `check-alerts`
 Responsibilities:
 - evaluate alerts for one cat or all cats when explicitly invoked
