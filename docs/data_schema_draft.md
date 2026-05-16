@@ -466,6 +466,8 @@ Example shape:
 ## Edge Functions
 Implement the alert workflow in Edge Functions, not in client code and not in heavy SQL triggers.
 
+All alert workflow functions use service-role privileges and must reject public anon-token calls. Scheduled jobs should call them with `Authorization: Bearer <service_role_key>` from Supabase Vault, not with the public anon key.
+
 ### `check-alerts`
 Responsibilities:
 - evaluate alerts for one cat or all cats when explicitly invoked
