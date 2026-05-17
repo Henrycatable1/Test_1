@@ -578,12 +578,13 @@ async function fetchRecipients(cat: CatRow) {
   }));
 }
 
-async function deactivatePreviousAlerts(catId: string, latestDate: string) {
+async function deactivateStaleAlerts(catId: string, latestDate: string) {
   const { error } = await admin
     .from("alerts")
     .update({ is_active: false })
     .eq("cat_id", catId)
-    .lt("alert_date", latestDate)
+    // ### rebuild alerts through the latest record so corrected same-day logs clear stale warnings
+    .lte("alert_date", latestDate)
     .eq("is_active", true);
 
   if (error) {
@@ -817,7 +818,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
   if (events.length === 0) {
     if (!dryRun) {
-      await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+      await deactivateStaleAlerts(cat.id, latestRecord.record_date);
     }
 
     return {
@@ -836,7 +837,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     };
   }
 
-  await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+  await deactivateStaleAlerts(cat.id, latestRecord.record_date);
 
   for (const event of events) {
     const alertVariants = await upsertAlertVariants(cat.id, event, latestRecord.id, messageMap);
