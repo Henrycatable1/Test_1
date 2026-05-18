@@ -22,7 +22,7 @@ Finish MVP 1.0 user value on top of the live Supabase stack, with real cat state
 10. Add export for vet sharing.
 
 ## Immediate Next Build Sprint
-1. Define and implement daily aggregation behavior for multiple quick-log categories so same-day submissions either accumulate or resolve to one daily value correctly inside `daily_health_record`.
+1. Monitor same-day daily aggregation for the confirmed accumulating fields (`vomit_times`, `food_amount_grams`, and appended notes) and define any additional field-specific rules before expanding the pattern.
 2. Monitor the first real-user runs of the debounced alert workflow in Supabase logs.
 3. Improve user-facing cat state summaries and trend presentation.
 4. Tighten any remaining alert-worker observability if live debugging needs it.
@@ -34,6 +34,7 @@ Finish MVP 1.0 user value on top of the live Supabase stack, with real cat state
 - Switched log saves away from direct `check-alerts` invocation and into queued evaluation.
 - Added review-pending messaging in the logging flow, dashboard, and profile views.
 - Validated burst logging, delayed evaluation, digest delivery, and emergency delivery end to end against the live project.
+- Added targeted same-day merge behavior for vomiting counts, food totals, and quick-log notes.
 
 ## Working Rules For Execution
 - Start with `README.md` for document routing.
