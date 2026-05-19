@@ -16,11 +16,30 @@ const supportedOtpTypes = new Set<EmailOtpType>([
 ]);
 
 function toSafeNextPath(input: string | null) {
-  if (!input || !input.startsWith("/")) {
+  const normalizedInput = input?.trim() ?? null;
+
+  // ### keep post-auth redirects on this app even if next is attacker-controlled
+  if (
+    !normalizedInput ||
+    !normalizedInput.startsWith("/") ||
+    normalizedInput.startsWith("//") ||
+    normalizedInput.includes("\\")
+  ) {
     return "/dashboard";
   }
 
-  return input;
+  try {
+    const safeBase = "https://catable.local";
+    const parsedUrl = new URL(normalizedInput, safeBase);
+
+    if (parsedUrl.origin !== safeBase) {
+      return "/dashboard";
+    }
+
+    return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+  } catch {
+    return "/dashboard";
+  }
 }
 
 export default function AuthCallbackPage() {

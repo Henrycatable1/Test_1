@@ -25,14 +25,16 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const workerBatchSize = 20;
 const retryDelayMs = 30_000;
+const staleClaimMs = 5 * 60_000;
 const checkAlertsUrl = `${supabaseUrl}/functions/v1/check-alerts`;
 
 async function loadDueRows(referenceTime: string) {
+  const staleProcessingBefore = new Date(Date.now() - staleClaimMs).toISOString();
   const { data, error } = await admin
     .from("cat_alert_evaluation_queue")
     .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
     .lte("due_at", referenceTime)
-    .is("processing_started_at", null)
+    .or(`processing_started_at.is.null,processing_started_at.lt.${staleProcessingBefore}`)
     .order("due_at", { ascending: true })
     .limit(workerBatchSize);
 
@@ -46,6 +48,7 @@ async function loadDueRows(referenceTime: string) {
 // ### claim each row defensively so overlapping worker runs do not process the same cat twice
 async function claimRow(row: QueueRow, referenceTime: string) {
   const claimedAt = new Date().toISOString();
+  const staleProcessingBefore = new Date(Date.now() - staleClaimMs).toISOString();
   const { data, error } = await admin
     .from("cat_alert_evaluation_queue")
     .update({
@@ -55,7 +58,7 @@ async function claimRow(row: QueueRow, referenceTime: string) {
     })
     .eq("cat_id", row.cat_id)
     .eq("activity_version", row.activity_version)
-    .is("processing_started_at", null)
+    .or(`processing_started_at.is.null,processing_started_at.lt.${staleProcessingBefore}`)
     .lte("due_at", referenceTime)
     .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
     .maybeSingle();
@@ -90,7 +93,7 @@ async function runAlertCheck(catId: string) {
   return await response.json();
 }
 
-async function clearClaim(catId: string, lastError: string | null) {
+async function clearClaim(row: QueueRow, lastError: string | null) {
   const { error } = await admin
     .from("cat_alert_evaluation_queue")
     .update({
@@ -98,7 +101,9 @@ async function clearClaim(catId: string, lastError: string | null) {
       processing_version: null,
       last_error: lastError,
     })
-    .eq("cat_id", catId);
+    .eq("cat_id", row.cat_id)
+    .eq("processing_started_at", row.processing_started_at)
+    .eq("processing_version", row.processing_version);
 
   if (error) {
     throw error;
@@ -123,7 +128,7 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
   const hasNewerActivity = currentRow.activity_version !== row.processing_version;
 
   if (hasNewerActivity) {
-    await clearClaim(row.cat_id, errorMessage);
+    await clearClaim(row, errorMessage);
     return;
   }
 
@@ -138,7 +143,9 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
         last_error: errorMessage,
       })
       .eq("cat_id", row.cat_id)
-      .eq("activity_version", row.processing_version ?? row.activity_version);
+      .eq("activity_version", row.processing_version ?? row.activity_version)
+      .eq("processing_started_at", row.processing_started_at)
+      .eq("processing_version", row.processing_version);
 
     if (error) {
       throw error;
@@ -151,7 +158,9 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
     .from("cat_alert_evaluation_queue")
     .delete()
     .eq("cat_id", row.cat_id)
-    .eq("activity_version", row.processing_version ?? row.activity_version);
+    .eq("activity_version", row.processing_version ?? row.activity_version)
+    .eq("processing_started_at", row.processing_started_at)
+    .eq("processing_version", row.processing_version);
 
   if (error) {
     throw error;
