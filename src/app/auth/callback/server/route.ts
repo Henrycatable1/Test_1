@@ -9,11 +9,28 @@ import type { Database } from "@/types/supabase";
 function toSafeNextPath(input: string | null) {
   const normalizedInput = input?.trim() ?? null;
 
-  if (!normalizedInput || !normalizedInput.startsWith("/")) {
+  // ### keep post-auth redirects on this app even if next is attacker-controlled
+  if (
+    !normalizedInput ||
+    !normalizedInput.startsWith("/") ||
+    normalizedInput.startsWith("//") ||
+    normalizedInput.includes("\\")
+  ) {
     return "/dashboard";
   }
 
-  return normalizedInput;
+  try {
+    const safeBase = "https://catable.local";
+    const parsedUrl = new URL(normalizedInput, safeBase);
+
+    if (parsedUrl.origin !== safeBase) {
+      return "/dashboard";
+    }
+
+    return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+  } catch {
+    return "/dashboard";
+  }
 }
 
 export async function GET(request: Request) {

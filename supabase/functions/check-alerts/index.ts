@@ -578,12 +578,12 @@ async function fetchRecipients(cat: CatRow) {
   }));
 }
 
-async function deactivatePreviousAlerts(catId: string, latestDate: string) {
+async function deactivateEvaluatedAlerts(catId: string, latestDate: string) {
   const { error } = await admin
     .from("alerts")
     .update({ is_active: false })
     .eq("cat_id", catId)
-    .lt("alert_date", latestDate)
+    .lte("alert_date", latestDate)
     .eq("is_active", true);
 
   if (error) {
@@ -710,6 +710,23 @@ async function sendEmergencyEmails(
     }
 
     try {
+      const { data: delivery, error: deliveryError } = await admin
+        .from("alert_deliveries")
+        .select("id, delivery_status")
+        .eq("alert_id", preferredAlert.id)
+        .eq("user_id", recipient.user_id)
+        .eq("channel", "email")
+        .maybeSingle();
+
+      if (deliveryError) {
+        throw deliveryError;
+      }
+
+      // ### only unsent emergency deliveries should email during re-evaluation
+      if (!delivery || delivery.delivery_status === "sent") {
+        continue;
+      }
+
       const subject =
         recipient.language_code === "zh-TW"
           ? "CATable 緊急提醒"
@@ -732,9 +749,7 @@ async function sendEmergencyEmails(
           delivery_status: "sent",
           delivered_at: new Date().toISOString(),
         })
-        .eq("alert_id", preferredAlert.id)
-        .eq("user_id", recipient.user_id)
-        .eq("channel", "email");
+        .eq("id", delivery.id);
     } catch (error) {
       await admin
         .from("alert_deliveries")
@@ -817,7 +832,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
   if (events.length === 0) {
     if (!dryRun) {
-      await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+      await deactivateEvaluatedAlerts(cat.id, latestRecord.record_date);
     }
 
     return {
@@ -836,7 +851,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     };
   }
 
-  await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+  await deactivateEvaluatedAlerts(cat.id, latestRecord.record_date);
 
   for (const event of events) {
     const alertVariants = await upsertAlertVariants(cat.id, event, latestRecord.id, messageMap);
@@ -857,6 +872,19 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
 serve(async (request) => {
   try {
+    if (request.headers.get("authorization") !== `Bearer ${serviceRoleKey}`) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "Unauthorized alert check invocation.",
+        }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
     const dryRun = Boolean(body.dryRun);
     const catId = typeof body.catId === "string" ? body.catId : null;

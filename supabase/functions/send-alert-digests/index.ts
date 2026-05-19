@@ -127,9 +127,14 @@ serve(async () => {
 
     for (const [userId, userDeliveries] of deliveriesByUser.entries()) {
       const profile = profileMap.get(userId);
+      const digestDeliveries = userDeliveries.filter((delivery) => alertMap.has(delivery.alert_id));
+
+      if (digestDeliveries.length === 0) {
+        continue;
+      }
 
       if (!profile?.email) {
-        const deliveryIds = userDeliveries.map((delivery) => delivery.id);
+        const deliveryIds = digestDeliveries.map((delivery) => delivery.id);
 
         await admin
           .from("alert_deliveries")
@@ -143,20 +148,11 @@ serve(async () => {
         continue;
       }
 
-      const digestAlerts = userDeliveries
+      const digestAlerts = digestDeliveries
         .map((delivery) => alertMap.get(delivery.alert_id))
         .filter((alert): alert is AlertRow => Boolean(alert));
 
       if (digestAlerts.length === 0) {
-        await admin
-          .from("alert_deliveries")
-          .update({
-            delivery_status: "skipped",
-            error_message: "No eligible non-emergency alerts were available for digest delivery.",
-          })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
-
-        skipped += userDeliveries.length;
         continue;
       }
 
@@ -175,9 +171,9 @@ serve(async () => {
             delivery_status: "sent",
             delivered_at: new Date().toISOString(),
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", digestDeliveries.map((delivery) => delivery.id));
 
-        sent += userDeliveries.length;
+        sent += digestDeliveries.length;
       } catch (error) {
         await admin
           .from("alert_deliveries")
@@ -185,7 +181,7 @@ serve(async () => {
             delivery_status: "failed",
             error_message: error instanceof Error ? error.message : String(error),
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", digestDeliveries.map((delivery) => delivery.id));
       }
     }
 
