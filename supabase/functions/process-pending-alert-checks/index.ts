@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { isAuthorizedWorkerRequest, unauthorizedWorkerResponse } from "../_shared/worker-auth.ts";
+
 type QueueRow = {
   cat_id: string;
   due_at: string;
@@ -158,7 +160,11 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
   }
 }
 
-serve(async () => {
+serve(async (request) => {
+  if (!isAuthorizedWorkerRequest(request, serviceRoleKey)) {
+    return unauthorizedWorkerResponse();
+  }
+
   try {
     const referenceTime = new Date().toISOString();
     const dueRows = await loadDueRows(referenceTime);
