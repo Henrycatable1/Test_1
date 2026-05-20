@@ -3,6 +3,9 @@ import type { LogItemId } from "@/types/domain";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
+type DailyRecordMergeContext = {
+  currentVomitTimes?: number | null;
+};
 
 function getRecordDateParts(occurredAt: string) {
   const date = new Date(occurredAt);
@@ -31,6 +34,13 @@ function appendNotes(...parts: Array<string | null | undefined>) {
     .map((part) => part?.trim())
     .filter(Boolean)
     .join("\n");
+}
+
+export function getNextVomitTimes(currentVomitTimes: number | null | undefined, repeatedToday: boolean) {
+  const currentCount = Number.isFinite(currentVomitTimes) ? Math.max(0, Math.floor(currentVomitTimes ?? 0)) : 0;
+
+  // ### each vomiting quick-log is a new event; the repeated checkbox guarantees at least a 2+ daily count
+  return Math.max(currentCount + 1, repeatedToday ? 2 : 1);
 }
 
 function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -75,12 +85,13 @@ function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_recor
   };
 }
 
-function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_records"> {
+function mapAbnormalValues(
+  values: FormValues,
+  mergeContext: DailyRecordMergeContext,
+): TablesUpdate<"daily_health_records"> {
   const eventType = typeof values.eventType === "string" ? values.eventType : "other";
   const repeated = values.repeatedToday === true;
-
-  return {
-    vomit_times: eventType === "vomiting" ? (repeated ? 2 : 1) : 0,
+  const updateValues: TablesUpdate<"daily_health_records"> = {
     abnormal_behavior: true,
     abnormal_behavior_note:
       appendNotes(
@@ -95,6 +106,12 @@ function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_recor
         eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
       ) || null,
   };
+
+  if (eventType === "vomiting") {
+    updateValues.vomit_times = getNextVomitTimes(mergeContext.currentVomitTimes, repeated);
+  }
+
+  return updateValues;
 }
 
 function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -131,6 +148,7 @@ function mapWeightValues(values: FormValues): TablesUpdate<"daily_health_records
 function mapDailyRecordValues(
   category: Exclude<LogItemId, "vet_visit">,
   values: FormValues,
+  mergeContext: DailyRecordMergeContext,
 ): TablesUpdate<"daily_health_records"> {
   switch (category) {
     case "food":
@@ -138,7 +156,7 @@ function mapDailyRecordValues(
     case "activity":
       return mapActivityValues(values);
     case "abnormal_event":
-      return mapAbnormalValues(values);
+      return mapAbnormalValues(values, mergeContext);
     case "medication":
       return mapMedicationValues(values);
     case "weight":
@@ -225,7 +243,24 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
     };
   }
 
-  const baseUpdate = mapDailyRecordValues(category, values as FormValues);
+  const mergeContext: DailyRecordMergeContext = {};
+
+  if (category === "abnormal_event" && values.eventType === "vomiting") {
+    const { data: existingRecord, error: existingRecordError } = await supabase
+      .from("daily_health_records")
+      .select("vomit_times")
+      .eq("cat_id", catId)
+      .eq("record_date", recordDate)
+      .maybeSingle();
+
+    if (existingRecordError) {
+      throw existingRecordError;
+    }
+
+    mergeContext.currentVomitTimes = existingRecord?.vomit_times ?? 0;
+  }
+
+  const baseUpdate = mapDailyRecordValues(category, values as FormValues, mergeContext);
   const upsertPayload: TablesInsert<"daily_health_records"> = {
     cat_id: catId,
     created_by: user.id,
