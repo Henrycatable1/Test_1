@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { rulesConfig, type AlertLevel, type CombinationClause, type MatchRule, type SingleMetricCondition } from "../_shared/alert-rules.ts";
 import { sendEmail } from "../_shared/email.ts";
+import { requireServiceRoleRequest } from "../_shared/function-auth.ts";
 
 type CatRow = {
   id: string;
@@ -578,7 +579,7 @@ async function fetchRecipients(cat: CatRow) {
   }));
 }
 
-async function deactivatePreviousAlerts(catId: string, latestDate: string) {
+async function deactivateStaleAlerts(catId: string, latestDate: string, activeRuleKeys: string[]) {
   const { error } = await admin
     .from("alerts")
     .update({ is_active: false })
@@ -588,6 +589,35 @@ async function deactivatePreviousAlerts(catId: string, latestDate: string) {
 
   if (error) {
     throw error;
+  }
+
+  const { data: sameDayAlerts, error: sameDayError } = await admin
+    .from("alerts")
+    .select("id, rule_key")
+    .eq("cat_id", catId)
+    .eq("alert_date", latestDate)
+    .eq("is_active", true);
+
+  if (sameDayError) {
+    throw sameDayError;
+  }
+
+  const activeRuleKeySet = new Set(activeRuleKeys);
+  const staleSameDayAlertIds = (sameDayAlerts ?? [])
+    .filter((alert) => !activeRuleKeySet.has(alert.rule_key as string))
+    .map((alert) => alert.id as string);
+
+  if (staleSameDayAlertIds.length === 0) {
+    return;
+  }
+
+  const { error: staleError } = await admin
+    .from("alerts")
+    .update({ is_active: false })
+    .in("id", staleSameDayAlertIds);
+
+  if (staleError) {
+    throw staleError;
   }
 }
 
@@ -817,7 +847,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
   if (events.length === 0) {
     if (!dryRun) {
-      await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+      await deactivateStaleAlerts(cat.id, latestRecord.record_date, []);
     }
 
     return {
@@ -836,7 +866,11 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     };
   }
 
-  await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+  await deactivateStaleAlerts(
+    cat.id,
+    latestRecord.record_date,
+    events.map((event) => event.ruleKey),
+  );
 
   for (const event of events) {
     const alertVariants = await upsertAlertVariants(cat.id, event, latestRecord.id, messageMap);
@@ -856,6 +890,12 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 }
 
 serve(async (request) => {
+  const unauthorizedResponse = requireServiceRoleRequest(request, serviceRoleKey);
+
+  if (unauthorizedResponse) {
+    return unauthorizedResponse;
+  }
+
   try {
     const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
     const dryRun = Boolean(body.dryRun);
