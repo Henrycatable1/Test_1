@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { requireServiceRoleRequest } from "../_shared/function-auth.ts";
 import { sendEmail } from "../_shared/email.ts";
 
 type DeliveryRow = {
@@ -74,7 +75,13 @@ function buildDigestEmail(languageCode: "en" | "zh-TW", alerts: AlertRow[]) {
   return { subject, html };
 }
 
-serve(async () => {
+serve(async (request) => {
+  const unauthorizedResponse = requireServiceRoleRequest(request, serviceRoleKey);
+
+  if (unauthorizedResponse) {
+    return unauthorizedResponse;
+  }
+
   try {
     const { data: pendingDeliveries, error: deliveryError } = await admin
       .from("alert_deliveries")
@@ -102,8 +109,7 @@ serve(async () => {
       admin
         .from("alerts")
         .select("id, cat_id, alert_date, alert_level, message")
-        .in("id", alertIds)
-        .neq("alert_level", "emergency"),
+        .in("id", alertIds),
       admin
         .from("profiles")
         .select("id, email, language_code, display_name")
@@ -143,20 +149,29 @@ serve(async () => {
         continue;
       }
 
-      const digestAlerts = userDeliveries
+      const digestDeliveries = userDeliveries.filter((delivery) => {
+        const alert = alertMap.get(delivery.alert_id);
+        return Boolean(alert && alert.alert_level !== "emergency");
+      });
+      const missingAlertDeliveryIds = userDeliveries
+        .filter((delivery) => !alertMap.has(delivery.alert_id))
+        .map((delivery) => delivery.id);
+      const digestAlerts = digestDeliveries
         .map((delivery) => alertMap.get(delivery.alert_id))
         .filter((alert): alert is AlertRow => Boolean(alert));
 
-      if (digestAlerts.length === 0) {
+      if (missingAlertDeliveryIds.length > 0) {
         await admin
           .from("alert_deliveries")
           .update({
             delivery_status: "skipped",
-            error_message: "No eligible non-emergency alerts were available for digest delivery.",
+            error_message: "The alert for this delivery no longer exists.",
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", missingAlertDeliveryIds);
+        skipped += missingAlertDeliveryIds.length;
+      }
 
-        skipped += userDeliveries.length;
+      if (digestAlerts.length === 0) {
         continue;
       }
 
@@ -175,9 +190,9 @@ serve(async () => {
             delivery_status: "sent",
             delivered_at: new Date().toISOString(),
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", digestDeliveries.map((delivery) => delivery.id));
 
-        sent += userDeliveries.length;
+        sent += digestDeliveries.length;
       } catch (error) {
         await admin
           .from("alert_deliveries")
@@ -185,7 +200,7 @@ serve(async () => {
             delivery_status: "failed",
             error_message: error instanceof Error ? error.message : String(error),
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", digestDeliveries.map((delivery) => delivery.id));
       }
     }
 
