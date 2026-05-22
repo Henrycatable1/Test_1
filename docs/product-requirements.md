@@ -113,6 +113,7 @@ For MVP 1.0:
 - Important alerts and reminders must be able to affect the dashboard state.
 - The highest active severity determines the current cat state.
 - Outstanding feedback messages must remain visible until the relevant conditions clear or the product explicitly resolves them.
+- Privileged alert worker endpoints must reject public/browser invocation and only accept internal service-role authorization.
 
 ### Alert timing
 - Logging writes should save immediately.
