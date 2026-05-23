@@ -9,7 +9,13 @@ import type { Database } from "@/types/supabase";
 function toSafeNextPath(input: string | null) {
   const normalizedInput = input?.trim() ?? null;
 
-  if (!normalizedInput || !normalizedInput.startsWith("/")) {
+  // ### keep post-auth redirects same-origin by rejecting protocol-relative URLs and backslash tricks
+  if (
+    !normalizedInput
+    || !normalizedInput.startsWith("/")
+    || normalizedInput.startsWith("//")
+    || normalizedInput.includes("\\")
+  ) {
     return "/dashboard";
   }
 
