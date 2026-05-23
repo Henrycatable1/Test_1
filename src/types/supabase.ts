@@ -598,7 +598,32 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      save_daily_health_record_log: {
+        Args: {
+          p_cat_id: string;
+          p_record_date: string;
+          p_feeding_time?: string | null;
+          p_food_type?: Database["public"]["Enums"]["cat_diet"] | null;
+          p_food_amount_grams?: number | null;
+          p_appetite_score?: number | null;
+          p_food_brand?: string | null;
+          p_suggested_food_grams?: number | null;
+          p_water_intake?: Database["public"]["Enums"]["water_intake_level"] | null;
+          p_stool_condition?: Database["public"]["Enums"]["stool_condition_type"] | null;
+          p_urine_times?: Database["public"]["Enums"]["urine_frequency_type"] | null;
+          p_activity_score?: number | null;
+          p_resting_breath_rate?: Database["public"]["Enums"]["breath_rate_zone"] | null;
+          p_vomit_times?: number | null;
+          p_tear_staining?: boolean | null;
+          p_abnormal_behavior?: boolean | null;
+          p_abnormal_behavior_note?: string | null;
+          p_gum_appearance?: Database["public"]["Enums"]["gum_appearance_type"] | null;
+          p_medication_taken?: Database["public"]["Enums"]["medication_status_type"] | null;
+          p_weight_kg?: number | null;
+          p_notes?: string | null;
+        };
+        Returns: string;
+      };
     };
     Enums: {
       alert_delivery_status_type: "pending" | "sent" | "failed" | "skipped";

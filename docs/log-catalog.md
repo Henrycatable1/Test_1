@@ -69,8 +69,9 @@ This is the canonical catalog of supported log items for the product.
   - `foodAmountGrams`, `suggestedFoodGrams`, and `weightKg` must be 0 or greater when present
   - `appetiteScore` and `activityScore` must be between `1` and `4` when present
   - repeated same-day quick-log submissions must follow explicit daily aggregation behavior inside the same daily record
-  - accumulating examples include event-derived counts such as `vomitTimes` and same-day food totals such as `foodAmountGrams`
-  - single-daily-value examples include day-level summary fields such as `urineTimes`
+  - accumulating fields: `vomitTimes` and `foodAmountGrams` add each same-day quick-log value to the existing daily total
+  - appended narrative fields: `notes` and `abnormalBehaviorNote` preserve earlier same-day context and append new same-day context
+  - latest-value fields: `foodType`, `feedingTime`, `appetiteScore`, `waterIntake`, `stoolCondition`, `urineTimes`, `activityScore`, `restingBreathRate`, `tearStaining`, `abnormalBehavior`, `gumAppearance`, `medicationTaken`, and `weightKg` keep one current daily value when a new non-empty value is logged
 - Follow-up implications:
   - powers the overall health status
   - may trigger metric alerts, combination alerts, weight reminders, and annual vet reminders
