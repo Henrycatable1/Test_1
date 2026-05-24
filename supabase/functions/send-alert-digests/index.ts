@@ -39,6 +39,34 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
   },
 });
 
+function getBearerToken(request: Request) {
+  const authorization = request.headers.get("Authorization") ?? "";
+  const [scheme, token] = authorization.split(/\s+/, 2);
+
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+
+  return token;
+}
+
+function requireServiceRole(request: Request) {
+  if (getBearerToken(request) === serviceRoleKey) {
+    return null;
+  }
+
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      error: "Unauthorized.",
+    }),
+    {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
 function groupByUser(deliveries: DeliveryRow[]) {
   const grouped = new Map<string, DeliveryRow[]>();
 
@@ -74,8 +102,15 @@ function buildDigestEmail(languageCode: "en" | "zh-TW", alerts: AlertRow[]) {
   return { subject, html };
 }
 
-serve(async () => {
+serve(async (request) => {
   try {
+    // ### digest delivery sends user emails with service-role data access, so keep it backend-only
+    const unauthorizedResponse = requireServiceRole(request);
+
+    if (unauthorizedResponse) {
+      return unauthorizedResponse;
+    }
+
     const { data: pendingDeliveries, error: deliveryError } = await admin
       .from("alert_deliveries")
       .select("id, alert_id, user_id, delivery_group_key")

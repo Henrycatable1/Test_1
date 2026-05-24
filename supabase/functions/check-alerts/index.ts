@@ -82,6 +82,34 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
   },
 });
 
+function getBearerToken(request: Request) {
+  const authorization = request.headers.get("Authorization") ?? "";
+  const [scheme, token] = authorization.split(/\s+/, 2);
+
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+
+  return token;
+}
+
+function requireServiceRole(request: Request) {
+  if (getBearerToken(request) === serviceRoleKey) {
+    return null;
+  }
+
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      error: "Unauthorized.",
+    }),
+    {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
 // ### fetch the full active message catalog once per invocation
 async function loadFeedbackMessages() {
   const { data, error } = await admin
@@ -857,6 +885,13 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
 serve(async (request) => {
   try {
+    // ### alert evaluation uses service-role data access and must only be called by trusted workers
+    const unauthorizedResponse = requireServiceRole(request);
+
+    if (unauthorizedResponse) {
+      return unauthorizedResponse;
+    }
+
     const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
     const dryRun = Boolean(body.dryRun);
     const catId = typeof body.catId === "string" ? body.catId : null;

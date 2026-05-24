@@ -25,7 +25,40 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const workerBatchSize = 20;
 const retryDelayMs = 30_000;
+const claimLeaseMs = 5 * 60_000;
 const checkAlertsUrl = `${supabaseUrl}/functions/v1/check-alerts`;
+
+function getBearerToken(request: Request) {
+  const authorization = request.headers.get("Authorization") ?? "";
+  const [scheme, token] = authorization.split(/\s+/, 2);
+
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+
+  return token;
+}
+
+function requireServiceRole(request: Request) {
+  if (getBearerToken(request) === serviceRoleKey) {
+    return null;
+  }
+
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      error: "Unauthorized.",
+    }),
+    {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
+function getStaleClaimCutoff(referenceTime: string) {
+  return new Date(new Date(referenceTime).getTime() - claimLeaseMs).toISOString();
+}
 
 async function loadDueRows(referenceTime: string) {
   const { data, error } = await admin
@@ -40,13 +73,32 @@ async function loadDueRows(referenceTime: string) {
     throw error;
   }
 
-  return (data ?? []) as QueueRow[];
+  const dueRows = (data ?? []) as QueueRow[];
+
+  if (dueRows.length >= workerBatchSize) {
+    return dueRows;
+  }
+
+  const staleClaimCutoff = getStaleClaimCutoff(referenceTime);
+  const { data: staleData, error: staleError } = await admin
+    .from("cat_alert_evaluation_queue")
+    .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
+    .lte("due_at", referenceTime)
+    .lt("processing_started_at", staleClaimCutoff)
+    .order("due_at", { ascending: true })
+    .limit(workerBatchSize - dueRows.length);
+
+  if (staleError) {
+    throw staleError;
+  }
+
+  return [...dueRows, ...((staleData ?? []) as QueueRow[])];
 }
 
 // ### claim each row defensively so overlapping worker runs do not process the same cat twice
 async function claimRow(row: QueueRow, referenceTime: string) {
   const claimedAt = new Date().toISOString();
-  const { data, error } = await admin
+  let query = admin
     .from("cat_alert_evaluation_queue")
     .update({
       processing_started_at: claimedAt,
@@ -55,8 +107,17 @@ async function claimRow(row: QueueRow, referenceTime: string) {
     })
     .eq("cat_id", row.cat_id)
     .eq("activity_version", row.activity_version)
-    .is("processing_started_at", null)
-    .lte("due_at", referenceTime)
+    .lte("due_at", referenceTime);
+
+  if (row.processing_started_at) {
+    query = query
+      .eq("processing_started_at", row.processing_started_at)
+      .lt("processing_started_at", getStaleClaimCutoff(referenceTime));
+  } else {
+    query = query.is("processing_started_at", null);
+  }
+
+  const { data, error } = await query
     .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
     .maybeSingle();
 
@@ -158,8 +219,15 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
   }
 }
 
-serve(async () => {
+serve(async (request) => {
   try {
+    // ### worker controls service-role alert checks, so external callers must present the service key
+    const unauthorizedResponse = requireServiceRole(request);
+
+    if (unauthorizedResponse) {
+      return unauthorizedResponse;
+    }
+
     const referenceTime = new Date().toISOString();
     const dueRows = await loadDueRows(referenceTime);
     let processed = 0;
