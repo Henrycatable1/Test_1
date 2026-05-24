@@ -27,7 +27,8 @@ This file helps future agents understand the product, architecture direction, co
   - database writes enqueue one pending evaluation row per cat in `cat_alert_evaluation_queue`
   - the backend waits for 30 seconds of inactivity before running `check-alerts`
   - `pg_cron` schedules `process-pending-alert-checks` every 30 seconds with a service-role bearer token
-  - alert workers require trusted service-role calls and reclaim stale processing claims after the worker lease
+  - alert and digest workers require trusted service-role calls
+  - alert workers reclaim stale processing claims after the worker lease
   - the logging UI, dashboard, and profile surfaces can show that today's logs are being reviewed
 - The queue-based debounce flow was validated end to end against the live Supabase project:
   - burst logging collapsed into one queued evaluation window

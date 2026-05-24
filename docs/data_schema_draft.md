@@ -503,6 +503,7 @@ This gives the app a unified review window while avoiding duplicate alert work d
 
 ### `send-alert-digests`
 Responsibilities:
+- require a service-role bearer token because it sends queued user email
 - run daily
 - group non-emergency pending deliveries per user
 - send one email per user per day
