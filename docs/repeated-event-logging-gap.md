@@ -38,19 +38,15 @@ Example:
 - urine should remain one daily value such as total frequency for the day, not a parallel set of per-event rows in MVP 1.0
 - if the user edits or re-logs it the same day, the product should preserve one final daily value rather than pretending they are separate event records
 
-## Current Implementation Gap
-Current behavior:
-- some quick-log saves derive values only from the latest form submission
-- the save flow upserts the same daily record for the date
-- the current implementation does not yet provide one clear product rule for which fields should accumulate and which should overwrite the daily value
-- vomiting is one confirmed example where separate same-day submissions do not reliably increment the existing count
+## Current Implementation Status
+Initial MVP behavior is now implemented for the confirmed accumulating fields:
+- same-day vomiting logs add to `daily_health_records.vomit_times`
+- a repeated-today vomiting submission records at least `2` vomiting events for that day
+- non-vomiting abnormal events preserve any existing vomiting count
+- same-day gram-based food logs add to `daily_health_records.food_amount_grams`
+- single-daily-value fields still resolve to one final daily value rather than parallel event rows
 
-This means:
-- first vomiting log can save `vomit_times = 1`
-- second vomiting log can save `vomit_times = 1` again instead of accumulating to `2`
-- the database may still show only one vomiting event for that day
-- the `vomit_times >= 2` rule may fail to trigger even though the user logged two separate vomiting events
-- the same design risk can also affect other multi-entry same-day categories such as food intake totals
+Future quick-log categories may still need classification before they are added to the daily rollup.
 
 ## Why This Matters
 - It can undercount important abnormal events.
@@ -59,12 +55,12 @@ This means:
 - It can make dashboard feedback inaccurate.
 - It can make the 7/14/30 day summary and PDF export inconsistent with what the user believes they logged.
 
-## Required Fix Direction
+## Required Rollup Direction
 Keep the MVP data model:
 - continue using separate quick-log entry points in the UI
 - continue using one `daily_health_record` table as the main daily source of truth
 
-Fix the write behavior:
+For any new same-day rollup field:
 - define per-field daily aggregation behavior explicitly
 - when the user logs another same-day entry for an accumulating field, the system should read or preserve the existing daily value and add or combine correctly
 - when the user logs another same-day entry for a single-daily-value field, the system should preserve one coherent daily value instead of treating it like a new parallel event row

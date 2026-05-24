@@ -1,8 +1,12 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LogItemId } from "@/types/domain";
-import type { TablesInsert, TablesUpdate } from "@/types/supabase";
+import type { Tables, TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
+type ExistingDailyRecord = Pick<
+  Tables<"daily_health_records">,
+  "food_amount_grams" | "vomit_times" | "notes" | "abnormal_behavior_note"
+>;
 
 function getRecordDateParts(occurredAt: string) {
   const date = new Date(occurredAt);
@@ -33,6 +37,10 @@ function appendNotes(...parts: Array<string | null | undefined>) {
     .join("\n");
 }
 
+function appendExistingNotes(existing: string | null | undefined, next: string | null | undefined) {
+  return appendNotes(existing, next) || null;
+}
+
 function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records"> {
   const foodType = typeof values.foodType === "string" && ["dry", "wet", "both"].includes(values.foodType)
     ? (values.foodType as "dry" | "wet" | "both")
@@ -49,52 +57,81 @@ function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records">
       ? `Recorded food type: ${values.foodType}.`
       : null,
   ];
+  const notes = appendNotes(...noteSegments);
+  const update: TablesUpdate<"daily_health_records"> = {};
 
-  return {
-    food_type: foodType,
-    food_amount_grams: typeof values.unit === "string" && values.unit === "g" ? amount : null,
-    appetite_score: appetite,
-    notes: appendNotes(...noteSegments) || null,
-  };
+  if (foodType) {
+    update.food_type = foodType;
+  }
+
+  if (typeof values.unit === "string" && values.unit === "g" && amount !== null) {
+    update.food_amount_grams = amount;
+  }
+
+  if (appetite !== null) {
+    update.appetite_score = appetite;
+  }
+
+  if (notes) {
+    update.notes = notes;
+  }
+
+  return update;
 }
 
 function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_records"> {
   const activityScore =
     values.energyLevel === "high" ? 4 : values.energyLevel === "medium" ? 3 : values.energyLevel === "low" ? 2 : null;
+  const notes = appendNotes(
+    typeof values.notes === "string" ? values.notes : null,
+    typeof values.activityType === "string" ? `Activity type: ${values.activityType}.` : null,
+    typeof values.durationMinutes === "string"
+      ? `Approximate duration: ${values.durationMinutes} minutes.`
+      : null,
+  );
+  const update: TablesUpdate<"daily_health_records"> = {};
 
-  return {
-    activity_score: activityScore,
-    notes:
-      appendNotes(
-        typeof values.notes === "string" ? values.notes : null,
-        typeof values.activityType === "string" ? `Activity type: ${values.activityType}.` : null,
-        typeof values.durationMinutes === "string"
-          ? `Approximate duration: ${values.durationMinutes} minutes.`
-          : null,
-      ) || null,
-  };
+  if (activityScore !== null) {
+    update.activity_score = activityScore;
+  }
+
+  if (notes) {
+    update.notes = notes;
+  }
+
+  return update;
 }
 
 function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_records"> {
   const eventType = typeof values.eventType === "string" ? values.eventType : "other";
   const repeated = values.repeatedToday === true;
-
-  return {
-    vomit_times: eventType === "vomiting" ? (repeated ? 2 : 1) : 0,
+  const abnormalBehaviorNote = appendNotes(
+    `Event type: ${eventType}.`,
+    typeof values.severity === "string" ? `Severity: ${values.severity}.` : null,
+    repeated ? "Marked as repeated today." : null,
+    typeof values.notes === "string" ? values.notes : null,
+  );
+  const notes = appendNotes(
+    typeof values.notes === "string" ? values.notes : null,
+    eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
+  );
+  const update: TablesUpdate<"daily_health_records"> = {
     abnormal_behavior: true,
-    abnormal_behavior_note:
-      appendNotes(
-        `Event type: ${eventType}.`,
-        typeof values.severity === "string" ? `Severity: ${values.severity}.` : null,
-        repeated ? "Marked as repeated today." : null,
-        typeof values.notes === "string" ? values.notes : null,
-      ) || null,
-    notes:
-      appendNotes(
-        typeof values.notes === "string" ? values.notes : null,
-        eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
-      ) || null,
   };
+
+  if (eventType === "vomiting") {
+    update.vomit_times = repeated ? 2 : 1;
+  }
+
+  if (abnormalBehaviorNote) {
+    update.abnormal_behavior_note = abnormalBehaviorNote;
+  }
+
+  if (notes) {
+    update.notes = notes;
+  }
+
+  return update;
 }
 
 function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -104,28 +141,42 @@ function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_rec
       : values.status === "missed" || values.status === "delayed"
         ? "missed"
         : null;
+  const notes = appendNotes(
+    typeof values.notes === "string" ? values.notes : null,
+    typeof values.medicationName === "string" ? `Medication: ${values.medicationName}.` : null,
+    typeof values.doseAmount === "string" ? `Dose: ${values.doseAmount}.` : null,
+    values.status === "delayed" ? "Dose was delayed." : null,
+  );
+  const update: TablesUpdate<"daily_health_records"> = {};
 
-  return {
-    medication_taken: status,
-    notes:
-      appendNotes(
-        typeof values.notes === "string" ? values.notes : null,
-        typeof values.medicationName === "string" ? `Medication: ${values.medicationName}.` : null,
-        typeof values.doseAmount === "string" ? `Dose: ${values.doseAmount}.` : null,
-        values.status === "delayed" ? "Dose was delayed." : null,
-      ) || null,
-  };
+  if (status) {
+    update.medication_taken = status;
+  }
+
+  if (notes) {
+    update.notes = notes;
+  }
+
+  return update;
 }
 
 function mapWeightValues(values: FormValues): TablesUpdate<"daily_health_records"> {
-  return {
-    weight_kg: toNumber(values.weightKg),
-    notes:
-      appendNotes(
-        typeof values.notes === "string" ? values.notes : null,
-        typeof values.scaleSource === "string" ? `Scale source: ${values.scaleSource}.` : null,
-      ) || null,
-  };
+  const weightKg = toNumber(values.weightKg);
+  const notes = appendNotes(
+    typeof values.notes === "string" ? values.notes : null,
+    typeof values.scaleSource === "string" ? `Scale source: ${values.scaleSource}.` : null,
+  );
+  const update: TablesUpdate<"daily_health_records"> = {};
+
+  if (weightKg !== null) {
+    update.weight_kg = weightKg;
+  }
+
+  if (notes) {
+    update.notes = notes;
+  }
+
+  return update;
 }
 
 function mapDailyRecordValues(
@@ -144,6 +195,40 @@ function mapDailyRecordValues(
     case "weight":
       return mapWeightValues(values);
   }
+}
+
+function mergeDailyRecordValues(
+  category: Exclude<LogItemId, "vet_visit">,
+  baseUpdate: TablesUpdate<"daily_health_records">,
+  existingRecord: ExistingDailyRecord | null,
+) {
+  const mergedUpdate: TablesUpdate<"daily_health_records"> = {
+    ...baseUpdate,
+  };
+
+  // ### same-day quick logs roll into one daily row, so accumulating fields must add to prior values
+  if (category === "food" && typeof baseUpdate.food_amount_grams === "number") {
+    mergedUpdate.food_amount_grams = (existingRecord?.food_amount_grams ?? 0) + baseUpdate.food_amount_grams;
+  }
+
+  if (category === "abnormal_event" && typeof baseUpdate.vomit_times === "number") {
+    const currentVomits = existingRecord?.vomit_times ?? 0;
+    mergedUpdate.vomit_times =
+      baseUpdate.vomit_times >= 2 ? Math.max(currentVomits, baseUpdate.vomit_times) : currentVomits + 1;
+  }
+
+  if (baseUpdate.notes) {
+    mergedUpdate.notes = appendExistingNotes(existingRecord?.notes, baseUpdate.notes);
+  }
+
+  if (baseUpdate.abnormal_behavior_note) {
+    mergedUpdate.abnormal_behavior_note = appendExistingNotes(
+      existingRecord?.abnormal_behavior_note,
+      baseUpdate.abnormal_behavior_note,
+    );
+  }
+
+  return mergedUpdate;
 }
 
 function getReviewMessage(catId: string) {
@@ -225,13 +310,25 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
     };
   }
 
+  const { data: existingRecord, error: existingRecordError } = await supabase
+    .from("daily_health_records")
+    .select("food_amount_grams, vomit_times, notes, abnormal_behavior_note")
+    .eq("cat_id", catId)
+    .eq("record_date", recordDate)
+    .maybeSingle();
+
+  if (existingRecordError) {
+    throw existingRecordError;
+  }
+
   const baseUpdate = mapDailyRecordValues(category, values as FormValues);
+  const mergedUpdate = mergeDailyRecordValues(category, baseUpdate, existingRecord);
   const upsertPayload: TablesInsert<"daily_health_records"> = {
     cat_id: catId,
     created_by: user.id,
     record_date: recordDate,
     feeding_time: category === "food" ? time : undefined,
-    ...baseUpdate,
+    ...mergedUpdate,
   };
 
   const { error: recordError } = await supabase

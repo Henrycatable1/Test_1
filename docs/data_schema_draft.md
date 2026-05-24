@@ -468,7 +468,8 @@ Implement the alert workflow in Edge Functions, not in client code and not in he
 
 ### `check-alerts`
 Responsibilities:
-- evaluate alerts for one cat or all cats when explicitly invoked
+- require a service-role bearer token because it uses privileged data access
+- evaluate alerts for one cat or all cats when explicitly invoked by trusted backend automation
 - fetch recent `daily_health_records` per cat
 - load the rules config mirrored from `docs/alert_rules.json`
 - evaluate single-metric and combination rules
@@ -482,8 +483,10 @@ Responsibilities:
 
 ### `process-pending-alert-checks`
 Responsibilities:
+- require a service-role bearer token from `pg_cron`/trusted backend callers
 - run on a short schedule, such as every 30 seconds
 - fetch due rows from `cat_alert_evaluation_queue`
+- reclaim rows whose previous processing claim exceeded the worker lease
 - invoke `check-alerts` for each due `cat_id`
 - mark the queue row as processed or store the latest worker error
 - skip rows whose `due_at` has moved forward because newer logging happened

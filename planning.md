@@ -22,17 +22,18 @@ Finish MVP 1.0 user value on top of the live Supabase stack, with real cat state
 10. Add export for vet sharing.
 
 ## Immediate Next Build Sprint
-1. Define and implement daily aggregation behavior for multiple quick-log categories so same-day submissions either accumulate or resolve to one daily value correctly inside `daily_health_record`.
-2. Monitor the first real-user runs of the debounced alert workflow in Supabase logs.
-3. Improve user-facing cat state summaries and trend presentation.
-4. Tighten any remaining alert-worker observability if live debugging needs it.
-5. Continue polishing onboarding, logging, dashboard, and profile UX on top of live Supabase data.
+1. Monitor the first real-user runs of the debounced alert workflow in Supabase logs.
+2. Improve user-facing cat state summaries and trend presentation.
+3. Tighten any remaining alert-worker observability if live debugging needs it.
+4. Continue polishing onboarding, logging, dashboard, and profile UX on top of live Supabase data.
 
 ## Recently Completed
 - Deployed `check-alerts`, `send-alert-digests`, and `process-pending-alert-checks` to Supabase.
 - Added the server-side debounce queue via `cat_alert_evaluation_queue`.
 - Switched log saves away from direct `check-alerts` invocation and into queued evaluation.
 - Added review-pending messaging in the logging flow, dashboard, and profile views.
+- Implemented initial same-day quick-log aggregation for vomiting counts and gram-based food totals.
+- Restricted alert worker Edge Functions to service-role invocations and added stale claim recovery.
 - Validated burst logging, delayed evaluation, digest delivery, and emergency delivery end to end against the live project.
 
 ## Working Rules For Execution
