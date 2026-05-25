@@ -38,19 +38,15 @@ Example:
 - urine should remain one daily value such as total frequency for the day, not a parallel set of per-event rows in MVP 1.0
 - if the user edits or re-logs it the same day, the product should preserve one final daily value rather than pretending they are separate event records
 
-## Current Implementation Gap
-Current behavior:
-- some quick-log saves derive values only from the latest form submission
-- the save flow upserts the same daily record for the date
-- the current implementation does not yet provide one clear product rule for which fields should accumulate and which should overwrite the daily value
-- vomiting is one confirmed example where separate same-day submissions do not reliably increment the existing count
+## Current Implementation Status
+The confirmed MVP 1.0 accumulating fields now merge against the existing same-day record before saving:
+- separate same-day vomiting logs add to `vomit_times`
+- separate same-day food logs add to `food_amount_grams`
+- same-day notes from separate quick-log categories are appended instead of erased by a later blank note
 
-This means:
-- first vomiting log can save `vomit_times = 1`
-- second vomiting log can save `vomit_times = 1` again instead of accumulating to `2`
-- the database may still show only one vomiting event for that day
-- the `vomit_times >= 2` rule may fail to trigger even though the user logged two separate vomiting events
-- the same design risk can also affect other multi-entry same-day categories such as food intake totals
+Remaining behavior to define before broadening this pattern:
+- additional fields may still need explicit accumulate-versus-replace rules as new quick-log categories mature
+- current client-side merging fixes normal sequential saves, but a future database-side merge function would be stronger if concurrent multi-device logging becomes common
 
 ## Why This Matters
 - It can undercount important abnormal events.
