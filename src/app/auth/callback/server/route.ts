@@ -8,12 +8,29 @@ import type { Database } from "@/types/supabase";
 
 function toSafeNextPath(input: string | null) {
   const normalizedInput = input?.trim() ?? null;
+  const sameOriginBase = "https://catable.local";
 
-  if (!normalizedInput || !normalizedInput.startsWith("/")) {
+  if (
+    !normalizedInput ||
+    !normalizedInput.startsWith("/") ||
+    normalizedInput.startsWith("//") ||
+    normalizedInput.includes("\\")
+  ) {
     return "/dashboard";
   }
 
-  return normalizedInput;
+  try {
+    const parsedUrl = new URL(normalizedInput, sameOriginBase);
+
+    // ### keep post-auth redirects on this app even for protocol-relative URL tricks
+    if (parsedUrl.origin !== sameOriginBase) {
+      return "/dashboard";
+    }
+
+    return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+  } catch {
+    return "/dashboard";
+  }
 }
 
 export async function GET(request: Request) {
