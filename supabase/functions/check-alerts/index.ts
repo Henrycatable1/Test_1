@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { rulesConfig, type AlertLevel, type CombinationClause, type MatchRule, type SingleMetricCondition } from "../_shared/alert-rules.ts";
 import { sendEmail } from "../_shared/email.ts";
+import { hasServiceRoleAuthorization, unauthorizedWorkerResponse } from "../_shared/worker-auth.ts";
 
 type CatRow = {
   id: string;
@@ -856,6 +857,10 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 }
 
 serve(async (request) => {
+  if (!hasServiceRoleAuthorization(request, serviceRoleKey)) {
+    return unauthorizedWorkerResponse();
+  }
+
   try {
     const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
     const dryRun = Boolean(body.dryRun);
