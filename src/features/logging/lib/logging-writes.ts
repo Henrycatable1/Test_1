@@ -1,8 +1,12 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LogItemId } from "@/types/domain";
-import type { TablesInsert, TablesUpdate } from "@/types/supabase";
+import type { Tables, TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
+type ExistingDailyRecord = Pick<
+  Tables<"daily_health_records">,
+  "abnormal_behavior_note" | "food_amount_grams" | "notes" | "vomit_times"
+>;
 
 function getRecordDateParts(occurredAt: string) {
   const date = new Date(occurredAt);
@@ -30,6 +34,23 @@ function appendNotes(...parts: Array<string | null | undefined>) {
   return parts
     .map((part) => part?.trim())
     .filter(Boolean)
+    .join("\n");
+}
+
+function appendDistinctNotes(...parts: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+
+  return parts
+    .flatMap((part) => part?.split("\n") ?? [])
+    .map((part) => part.trim())
+    .filter((part) => {
+      if (!part || seen.has(part)) {
+        return false;
+      }
+
+      seen.add(part);
+      return true;
+    })
     .join("\n");
 }
 
@@ -146,6 +167,45 @@ function mapDailyRecordValues(
   }
 }
 
+function mergeDailyRecordValues(
+  category: Exclude<LogItemId, "vet_visit">,
+  update: TablesUpdate<"daily_health_records">,
+  existingRecord: ExistingDailyRecord | null,
+) {
+  if (!existingRecord) {
+    return update;
+  }
+
+  const mergedUpdate = { ...update };
+
+  // ### repeated same-day quick logs should add to aggregate fields instead of replacing them
+  if (category === "food" && typeof update.food_amount_grams === "number") {
+    mergedUpdate.food_amount_grams = (existingRecord.food_amount_grams ?? 0) + update.food_amount_grams;
+  }
+
+  if (category === "abnormal_event") {
+    if (typeof update.vomit_times === "number" && update.vomit_times > 0) {
+      mergedUpdate.vomit_times = (existingRecord.vomit_times ?? 0) + update.vomit_times;
+    } else {
+      delete mergedUpdate.vomit_times;
+    }
+
+    if (update.abnormal_behavior_note) {
+      mergedUpdate.abnormal_behavior_note =
+        appendDistinctNotes(existingRecord.abnormal_behavior_note, update.abnormal_behavior_note) || null;
+    }
+  }
+
+  // ### blank notes on later category logs must not erase earlier same-day observations
+  if (update.notes) {
+    mergedUpdate.notes = appendDistinctNotes(existingRecord.notes, update.notes) || null;
+  } else if (existingRecord.notes) {
+    delete mergedUpdate.notes;
+  }
+
+  return mergedUpdate;
+}
+
 function getReviewMessage(catId: string) {
   void catId;
 
@@ -226,12 +286,24 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
   }
 
   const baseUpdate = mapDailyRecordValues(category, values as FormValues);
+  const { data: existingRecord, error: existingRecordError } = await supabase
+    .from("daily_health_records")
+    .select("abnormal_behavior_note, food_amount_grams, notes, vomit_times")
+    .eq("cat_id", catId)
+    .eq("record_date", recordDate)
+    .maybeSingle();
+
+  if (existingRecordError) {
+    throw existingRecordError;
+  }
+
+  const mergedUpdate = mergeDailyRecordValues(category, baseUpdate, existingRecord);
   const upsertPayload: TablesInsert<"daily_health_records"> = {
     cat_id: catId,
     created_by: user.id,
     record_date: recordDate,
     feeding_time: category === "food" ? time : undefined,
-    ...baseUpdate,
+    ...mergedUpdate,
   };
 
   const { error: recordError } = await supabase
