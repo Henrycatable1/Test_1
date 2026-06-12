@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
+import { toSafeNextPath } from "./safe-next-path";
+
 const supportedOtpTypes = new Set<EmailOtpType>([
   "signup",
   "magiclink",
@@ -14,14 +16,6 @@ const supportedOtpTypes = new Set<EmailOtpType>([
   "email_change",
   "email",
 ]);
-
-function toSafeNextPath(input: string | null) {
-  if (!input || !input.startsWith("/")) {
-    return "/dashboard";
-  }
-
-  return input;
-}
 
 export default function AuthCallbackPage() {
   const router = useRouter();
