@@ -6,15 +6,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseEnv } from "@/lib/env";
 import type { Database } from "@/types/supabase";
 
-function toSafeNextPath(input: string | null) {
-  const normalizedInput = input?.trim() ?? null;
-
-  if (!normalizedInput || !normalizedInput.startsWith("/")) {
-    return "/dashboard";
-  }
-
-  return normalizedInput;
-}
+import { toSafeNextPath } from "../safe-next-path";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
