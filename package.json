@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "sync:alert-rules": "node scripts/sync-alert-rules.mjs"
   },
@@ -24,5 +25,8 @@
     "react-dom": "^19.2.4",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.8"
   }
 }

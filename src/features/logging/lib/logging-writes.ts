@@ -1,8 +1,13 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LogItemId } from "@/types/domain";
-import type { TablesInsert, TablesUpdate } from "@/types/supabase";
+import type { Tables, TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
+type DailyRecordRow = Tables<"daily_health_records">;
+type DailyRecordMergeInput = Pick<
+  DailyRecordRow,
+  "abnormal_behavior_note" | "food_amount_grams" | "food_type" | "notes" | "vomit_times"
+>;
 
 function getRecordDateParts(occurredAt: string) {
   const date = new Date(occurredAt);
@@ -31,6 +36,71 @@ function appendNotes(...parts: Array<string | null | undefined>) {
     .map((part) => part?.trim())
     .filter(Boolean)
     .join("\n");
+}
+
+function combineNotes(existing: string | null | undefined, incoming: string | null | undefined) {
+  const existingText = existing?.trim();
+  const incomingText = incoming?.trim();
+
+  if (!existingText) {
+    return incomingText || null;
+  }
+
+  if (!incomingText || existingText === incomingText) {
+    return existingText;
+  }
+
+  return `${existingText}\n${incomingText}`;
+}
+
+function combineFoodType(
+  existing: DailyRecordMergeInput["food_type"] | undefined,
+  incoming: DailyRecordMergeInput["food_type"] | undefined,
+) {
+  if (!existing || !incoming || existing === incoming) {
+    return incoming ?? existing ?? null;
+  }
+
+  return "both";
+}
+
+export function mergeDailyRecordValues(
+  existingRecord: DailyRecordMergeInput | null,
+  incomingValues: TablesUpdate<"daily_health_records">,
+) {
+  const mergedValues = { ...incomingValues };
+
+  if (!existingRecord) {
+    return mergedValues;
+  }
+
+  // ### daily rollups preserve earlier same-day quick logs before the upsert overwrites the row
+  if (typeof incomingValues.food_amount_grams === "number") {
+    mergedValues.food_amount_grams = (existingRecord.food_amount_grams ?? 0) + incomingValues.food_amount_grams;
+  } else if (incomingValues.food_amount_grams === null) {
+    mergedValues.food_amount_grams = existingRecord.food_amount_grams;
+  }
+
+  if (incomingValues.food_type !== undefined) {
+    mergedValues.food_type = combineFoodType(existingRecord.food_type, incomingValues.food_type);
+  }
+
+  if (typeof incomingValues.vomit_times === "number") {
+    mergedValues.vomit_times = existingRecord.vomit_times + incomingValues.vomit_times;
+  }
+
+  if (incomingValues.notes !== undefined) {
+    mergedValues.notes = combineNotes(existingRecord.notes, incomingValues.notes);
+  }
+
+  if (incomingValues.abnormal_behavior_note !== undefined) {
+    mergedValues.abnormal_behavior_note = combineNotes(
+      existingRecord.abnormal_behavior_note,
+      incomingValues.abnormal_behavior_note,
+    );
+  }
+
+  return mergedValues;
 }
 
 function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -80,7 +150,7 @@ function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_recor
   const repeated = values.repeatedToday === true;
 
   return {
-    vomit_times: eventType === "vomiting" ? (repeated ? 2 : 1) : 0,
+    ...(eventType === "vomiting" ? { vomit_times: repeated ? 2 : 1 } : {}),
     abnormal_behavior: true,
     abnormal_behavior_note:
       appendNotes(
@@ -226,12 +296,24 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
   }
 
   const baseUpdate = mapDailyRecordValues(category, values as FormValues);
+  const { data: existingRecord, error: existingRecordError } = await supabase
+    .from("daily_health_records")
+    .select("abnormal_behavior_note,food_amount_grams,food_type,notes,vomit_times")
+    .eq("cat_id", catId)
+    .eq("record_date", recordDate)
+    .maybeSingle();
+
+  if (existingRecordError) {
+    throw existingRecordError;
+  }
+
+  const dailyUpdate = mergeDailyRecordValues(existingRecord, baseUpdate);
   const upsertPayload: TablesInsert<"daily_health_records"> = {
     cat_id: catId,
     created_by: user.id,
     record_date: recordDate,
     feeding_time: category === "food" ? time : undefined,
-    ...baseUpdate,
+    ...dailyUpdate,
   };
 
   const { error: recordError } = await supabase
