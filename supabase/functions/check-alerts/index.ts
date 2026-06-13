@@ -578,12 +578,12 @@ async function fetchRecipients(cat: CatRow) {
   }));
 }
 
-async function deactivatePreviousAlerts(catId: string, latestDate: string) {
+async function deactivateCurrentAndPreviousAlerts(catId: string, latestDate: string) {
   const { error } = await admin
     .from("alerts")
     .update({ is_active: false })
     .eq("cat_id", catId)
-    .lt("alert_date", latestDate)
+    .lte("alert_date", latestDate)
     .eq("is_active", true);
 
   if (error) {
@@ -817,7 +817,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
   if (events.length === 0) {
     if (!dryRun) {
-      await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+      await deactivateCurrentAndPreviousAlerts(cat.id, latestRecord.record_date);
     }
 
     return {
@@ -836,7 +836,8 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     };
   }
 
-  await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+  // ### clear the evaluated window first so corrected same-day logs remove resolved alerts
+  await deactivateCurrentAndPreviousAlerts(cat.id, latestRecord.record_date);
 
   for (const event of events) {
     const alertVariants = await upsertAlertVariants(cat.id, event, latestRecord.id, messageMap);
