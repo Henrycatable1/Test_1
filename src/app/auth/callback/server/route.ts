@@ -9,7 +9,12 @@ import type { Database } from "@/types/supabase";
 function toSafeNextPath(input: string | null) {
   const normalizedInput = input?.trim() ?? null;
 
-  if (!normalizedInput || !normalizedInput.startsWith("/")) {
+  if (
+    !normalizedInput
+    || !normalizedInput.startsWith("/")
+    || normalizedInput.startsWith("//")
+    || normalizedInput.startsWith("/\\")
+  ) {
     return "/dashboard";
   }
 
