@@ -3,18 +3,9 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { resolveTrustedRequestOrigin, toSafeNextPath } from "@/lib/auth-redirect";
 import { getSupabaseEnv } from "@/lib/env";
 import type { Database } from "@/types/supabase";
-
-function toSafeNextPath(input: string | null) {
-  const normalizedInput = input?.trim() ?? null;
-
-  if (!normalizedInput || !normalizedInput.startsWith("/")) {
-    return "/dashboard";
-  }
-
-  return normalizedInput;
-}
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -25,7 +16,11 @@ export async function GET(request: Request) {
   const headerStore = await headers();
   const requestHost = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
   const requestProtocol = headerStore.get("x-forwarded-proto") ?? requestUrl.protocol.replace(":", "");
-  const requestOrigin = requestHost ? `${requestProtocol}://${requestHost}` : requestUrl.origin;
+  const requestOrigin = resolveTrustedRequestOrigin({
+    requestOrigin: requestUrl.origin,
+    headerOrigin: requestHost ? `${requestProtocol}://${requestHost}` : null,
+    canonicalAppUrl: process.env.NEXT_PUBLIC_APP_URL,
+  });
   const redirectUrl = new URL(nextPath, requestOrigin);
   const response = NextResponse.redirect(redirectUrl);
   const authErrorBaseUrl = new URL("/signin?auth_error=1", requestOrigin);

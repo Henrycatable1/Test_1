@@ -38,19 +38,20 @@ Example:
 - urine should remain one daily value such as total frequency for the day, not a parallel set of per-event rows in MVP 1.0
 - if the user edits or re-logs it the same day, the product should preserve one final daily value rather than pretending they are separate event records
 
-## Current Implementation Gap
+## Implementation Status
 Current behavior:
-- some quick-log saves derive values only from the latest form submission
-- the save flow upserts the same daily record for the date
-- the current implementation does not yet provide one clear product rule for which fields should accumulate and which should overwrite the daily value
-- vomiting is one confirmed example where separate same-day submissions do not reliably increment the existing count
+- quick-log saves still upsert the same daily record for the date
+- same-day `vomit_times` submissions accumulate into the existing daily count
+- same-day gram-based food submissions accumulate into the existing daily food total
+- quick-log notes append to earlier same-day notes instead of replacing them
+- non-vomiting abnormal events preserve any earlier same-day `vomit_times` value
 
 This means:
 - first vomiting log can save `vomit_times = 1`
-- second vomiting log can save `vomit_times = 1` again instead of accumulating to `2`
-- the database may still show only one vomiting event for that day
-- the `vomit_times >= 2` rule may fail to trigger even though the user logged two separate vomiting events
-- the same design risk can also affect other multi-entry same-day categories such as food intake totals
+- second same-day vomiting log increments the daily value to `2`
+- a later same-day diarrhea, appetite-loss, or other abnormal event does not reset vomiting to `0`
+- the `vomit_times >= 2` rule can trigger from two separate same-day vomiting submissions
+- same-day food logs in grams combine into one daily total for summaries, trends, and exports
 
 ## Why This Matters
 - It can undercount important abnormal events.
@@ -69,7 +70,7 @@ Fix the write behavior:
 - when the user logs another same-day entry for an accumulating field, the system should read or preserve the existing daily value and add or combine correctly
 - when the user logs another same-day entry for a single-daily-value field, the system should preserve one coherent daily value instead of treating it like a new parallel event row
 
-### Initial product guidance confirmed so far
+### Product guidance implemented so far
 - `vomit_times` should accumulate across same-day submissions
 - food intake should accumulate into the daily total for the day
 - urine should remain one daily value for the day for MVP 1.0

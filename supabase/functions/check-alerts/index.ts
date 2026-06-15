@@ -591,6 +591,46 @@ async function deactivatePreviousAlerts(catId: string, latestDate: string) {
   }
 }
 
+async function deactivateStaleSameDayAlerts(catId: string, latestDate: string, activeRuleKeys: Set<string>) {
+  const { data, error } = await admin
+    .from("alerts")
+    .select("id, rule_key")
+    .eq("cat_id", catId)
+    .eq("alert_date", latestDate)
+    .eq("is_active", true);
+
+  if (error) {
+    throw error;
+  }
+
+  const staleAlertIds = ((data ?? []) as Array<{ id: string; rule_key: string }>)
+    .filter((alert) => !activeRuleKeys.has(alert.rule_key))
+    .map((alert) => alert.id);
+
+  if (staleAlertIds.length === 0) {
+    return;
+  }
+
+  // ### clear same-day rules that stopped matching so dashboard state follows the latest daily record
+  const { error: updateError } = await admin
+    .from("alerts")
+    .update({ is_active: false })
+    .in("id", staleAlertIds);
+
+  if (updateError) {
+    throw updateError;
+  }
+}
+
+async function deactivateStaleAlertsForEvaluation(
+  catId: string,
+  latestDate: string,
+  activeRuleKeys: Set<string>,
+) {
+  await deactivatePreviousAlerts(catId, latestDate);
+  await deactivateStaleSameDayAlerts(catId, latestDate, activeRuleKeys);
+}
+
 async function upsertAlertVariants(
   catId: string,
   event: EvaluatedEvent,
@@ -817,7 +857,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
   if (events.length === 0) {
     if (!dryRun) {
-      await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+      await deactivateStaleAlertsForEvaluation(cat.id, latestRecord.record_date, new Set<string>());
     }
 
     return {
@@ -836,7 +876,11 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     };
   }
 
-  await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+  await deactivateStaleAlertsForEvaluation(
+    cat.id,
+    latestRecord.record_date,
+    new Set(events.map((event) => event.ruleKey)),
+  );
 
   for (const event of events) {
     const alertVariants = await upsertAlertVariants(cat.id, event, latestRecord.id, messageMap);

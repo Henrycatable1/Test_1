@@ -42,6 +42,7 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
 - Edge cases:
   - ignore missing optional fields instead of treating them as abnormal
   - avoid duplicate alerts for the same cat, date, rule, and level
+  - deactivate same-day alerts when a later same-day evaluation shows that their rule no longer matches
   - derived rules such as weight-change or kitten-stagnation must use historical calculations rather than raw form fields
 - Example scenarios:
   - appetite score `2` for two consecutive days creates a `vet_recommended` alert
