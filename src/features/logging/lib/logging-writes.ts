@@ -1,8 +1,11 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LogItemId } from "@/types/domain";
-import type { TablesInsert, TablesUpdate } from "@/types/supabase";
+import type { Tables, TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
+type ExistingAbnormalRecord =
+  | Pick<Tables<"daily_health_records">, "abnormal_behavior_note" | "notes" | "vomit_times">
+  | null;
 
 function getRecordDateParts(occurredAt: string) {
   const date = new Date(occurredAt);
@@ -75,26 +78,45 @@ function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_recor
   };
 }
 
-function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_records"> {
+function mapAbnormalValues(
+  values: FormValues,
+  existingRecord: ExistingAbnormalRecord,
+): TablesUpdate<"daily_health_records"> {
   const eventType = typeof values.eventType === "string" ? values.eventType : "other";
   const repeated = values.repeatedToday === true;
-
-  return {
-    vomit_times: eventType === "vomiting" ? (repeated ? 2 : 1) : 0,
+  const existingVomitTimes = existingRecord?.vomit_times ?? 0;
+  const nextVomitTimes =
+    eventType === "vomiting"
+      ? repeated
+        ? Math.max(existingVomitTimes, 2)
+        : existingVomitTimes + 1
+      : existingRecord
+        ? existingVomitTimes
+        : undefined;
+  const abnormalBehaviorNote =
+    appendNotes(
+      `Event type: ${eventType}.`,
+      typeof values.severity === "string" ? `Severity: ${values.severity}.` : null,
+      repeated ? "Marked as repeated today." : null,
+      typeof values.notes === "string" ? values.notes : null,
+    ) || null;
+  const notes =
+    appendNotes(
+      typeof values.notes === "string" ? values.notes : null,
+      eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
+    ) || null;
+  const update: TablesUpdate<"daily_health_records"> = {
     abnormal_behavior: true,
-    abnormal_behavior_note:
-      appendNotes(
-        `Event type: ${eventType}.`,
-        typeof values.severity === "string" ? `Severity: ${values.severity}.` : null,
-        repeated ? "Marked as repeated today." : null,
-        typeof values.notes === "string" ? values.notes : null,
-      ) || null,
-    notes:
-      appendNotes(
-        typeof values.notes === "string" ? values.notes : null,
-        eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
-      ) || null,
+    abnormal_behavior_note: appendNotes(existingRecord?.abnormal_behavior_note, abnormalBehaviorNote) || null,
+    notes: appendNotes(existingRecord?.notes, notes) || null,
   };
+
+  // ### preserve same-day vomiting counts because alert rules treat 2+ episodes as vet-recommended
+  if (nextVomitTimes !== undefined) {
+    update.vomit_times = nextVomitTimes;
+  }
+
+  return update;
 }
 
 function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -131,6 +153,7 @@ function mapWeightValues(values: FormValues): TablesUpdate<"daily_health_records
 function mapDailyRecordValues(
   category: Exclude<LogItemId, "vet_visit">,
   values: FormValues,
+  existingAbnormalRecord: ExistingAbnormalRecord = null,
 ): TablesUpdate<"daily_health_records"> {
   switch (category) {
     case "food":
@@ -138,7 +161,7 @@ function mapDailyRecordValues(
     case "activity":
       return mapActivityValues(values);
     case "abnormal_event":
-      return mapAbnormalValues(values);
+      return mapAbnormalValues(values, existingAbnormalRecord);
     case "medication":
       return mapMedicationValues(values);
     case "weight":
@@ -225,7 +248,24 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
     };
   }
 
-  const baseUpdate = mapDailyRecordValues(category, values as FormValues);
+  let existingAbnormalRecord: ExistingAbnormalRecord = null;
+
+  if (category === "abnormal_event") {
+    const { data: existingRecord, error: existingRecordError } = await supabase
+      .from("daily_health_records")
+      .select("abnormal_behavior_note, notes, vomit_times")
+      .eq("cat_id", catId)
+      .eq("record_date", recordDate)
+      .maybeSingle();
+
+    if (existingRecordError) {
+      throw existingRecordError;
+    }
+
+    existingAbnormalRecord = existingRecord;
+  }
+
+  const baseUpdate = mapDailyRecordValues(category, values as FormValues, existingAbnormalRecord);
   const upsertPayload: TablesInsert<"daily_health_records"> = {
     cat_id: catId,
     created_by: user.id,
