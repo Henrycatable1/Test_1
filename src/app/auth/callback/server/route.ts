@@ -4,16 +4,22 @@ import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getSupabaseEnv } from "@/lib/env";
+import { toSafeNextPath } from "@/lib/safe-next-path";
 import type { Database } from "@/types/supabase";
 
-function toSafeNextPath(input: string | null) {
-  const normalizedInput = input?.trim() ?? null;
+function toRequestOrigin(requestUrl: URL, headerStore: Headers) {
+  const requestHost = headerStore.get("host")?.split(",")[0]?.trim();
+  const requestProtocol = headerStore.get("x-forwarded-proto")?.split(",")[0]?.trim() ?? requestUrl.protocol.replace(":", "");
 
-  if (!normalizedInput || !normalizedInput.startsWith("/")) {
-    return "/dashboard";
+  if (!requestHost || (requestProtocol !== "http" && requestProtocol !== "https")) {
+    return requestUrl.origin;
   }
 
-  return normalizedInput;
+  try {
+    return new URL(`${requestProtocol}://${requestHost}`).origin;
+  } catch {
+    return requestUrl.origin;
+  }
 }
 
 export async function GET(request: Request) {
@@ -23,9 +29,7 @@ export async function GET(request: Request) {
   const otpType = requestUrl.searchParams.get("type");
   const nextPath = toSafeNextPath(requestUrl.searchParams.get("next"));
   const headerStore = await headers();
-  const requestHost = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
-  const requestProtocol = headerStore.get("x-forwarded-proto") ?? requestUrl.protocol.replace(":", "");
-  const requestOrigin = requestHost ? `${requestProtocol}://${requestHost}` : requestUrl.origin;
+  const requestOrigin = toRequestOrigin(requestUrl, headerStore);
   const redirectUrl = new URL(nextPath, requestOrigin);
   const response = NextResponse.redirect(redirectUrl);
   const authErrorBaseUrl = new URL("/signin?auth_error=1", requestOrigin);
