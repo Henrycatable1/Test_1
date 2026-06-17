@@ -1,8 +1,12 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LogItemId } from "@/types/domain";
-import type { TablesInsert, TablesUpdate } from "@/types/supabase";
+import type { Database, TablesInsert } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
+type DailyRecordLogFields = Omit<
+  Database["public"]["Functions"]["save_daily_health_record_log"]["Args"],
+  "p_cat_id" | "p_record_date"
+>;
 
 function getRecordDateParts(occurredAt: string) {
   const date = new Date(occurredAt);
@@ -22,7 +26,13 @@ function toNumber(value: string | boolean | undefined) {
     return null;
   }
 
-  const parsed = Number(value);
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const parsed = Number(trimmedValue);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -33,7 +43,7 @@ function appendNotes(...parts: Array<string | null | undefined>) {
     .join("\n");
 }
 
-function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records"> {
+function mapFoodValues(values: FormValues): DailyRecordLogFields {
   const foodType = typeof values.foodType === "string" && ["dry", "wet", "both"].includes(values.foodType)
     ? (values.foodType as "dry" | "wet" | "both")
     : null;
@@ -51,20 +61,20 @@ function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records">
   ];
 
   return {
-    food_type: foodType,
-    food_amount_grams: typeof values.unit === "string" && values.unit === "g" ? amount : null,
-    appetite_score: appetite,
-    notes: appendNotes(...noteSegments) || null,
+    p_food_type: foodType,
+    p_food_amount_grams: typeof values.unit === "string" && values.unit === "g" ? amount : null,
+    p_appetite_score: appetite,
+    p_notes: appendNotes(...noteSegments) || null,
   };
 }
 
-function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_records"> {
+function mapActivityValues(values: FormValues): DailyRecordLogFields {
   const activityScore =
     values.energyLevel === "high" ? 4 : values.energyLevel === "medium" ? 3 : values.energyLevel === "low" ? 2 : null;
 
   return {
-    activity_score: activityScore,
-    notes:
+    p_activity_score: activityScore,
+    p_notes:
       appendNotes(
         typeof values.notes === "string" ? values.notes : null,
         typeof values.activityType === "string" ? `Activity type: ${values.activityType}.` : null,
@@ -75,21 +85,22 @@ function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_recor
   };
 }
 
-function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_records"> {
+function mapAbnormalValues(values: FormValues): DailyRecordLogFields {
   const eventType = typeof values.eventType === "string" ? values.eventType : "other";
   const repeated = values.repeatedToday === true;
+  const vomitTimesDelta = eventType === "vomiting" ? (repeated ? 2 : 1) : null;
 
   return {
-    vomit_times: eventType === "vomiting" ? (repeated ? 2 : 1) : 0,
-    abnormal_behavior: true,
-    abnormal_behavior_note:
+    p_vomit_times_delta: vomitTimesDelta,
+    p_abnormal_behavior: true,
+    p_abnormal_behavior_note:
       appendNotes(
         `Event type: ${eventType}.`,
         typeof values.severity === "string" ? `Severity: ${values.severity}.` : null,
         repeated ? "Marked as repeated today." : null,
         typeof values.notes === "string" ? values.notes : null,
       ) || null,
-    notes:
+    p_notes:
       appendNotes(
         typeof values.notes === "string" ? values.notes : null,
         eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
@@ -97,7 +108,7 @@ function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_recor
   };
 }
 
-function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_records"> {
+function mapMedicationValues(values: FormValues): DailyRecordLogFields {
   const status =
     values.status === "given"
       ? "taken"
@@ -106,8 +117,8 @@ function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_rec
         : null;
 
   return {
-    medication_taken: status,
-    notes:
+    p_medication_taken: status,
+    p_notes:
       appendNotes(
         typeof values.notes === "string" ? values.notes : null,
         typeof values.medicationName === "string" ? `Medication: ${values.medicationName}.` : null,
@@ -117,10 +128,10 @@ function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_rec
   };
 }
 
-function mapWeightValues(values: FormValues): TablesUpdate<"daily_health_records"> {
+function mapWeightValues(values: FormValues): DailyRecordLogFields {
   return {
-    weight_kg: toNumber(values.weightKg),
-    notes:
+    p_weight_kg: toNumber(values.weightKg),
+    p_notes:
       appendNotes(
         typeof values.notes === "string" ? values.notes : null,
         typeof values.scaleSource === "string" ? `Scale source: ${values.scaleSource}.` : null,
@@ -131,7 +142,7 @@ function mapWeightValues(values: FormValues): TablesUpdate<"daily_health_records
 function mapDailyRecordValues(
   category: Exclude<LogItemId, "vet_visit">,
   values: FormValues,
-): TablesUpdate<"daily_health_records"> {
+): DailyRecordLogFields {
   switch (category) {
     case "food":
       return mapFoodValues(values);
@@ -226,19 +237,15 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
   }
 
   const baseUpdate = mapDailyRecordValues(category, values as FormValues);
-  const upsertPayload: TablesInsert<"daily_health_records"> = {
-    cat_id: catId,
-    created_by: user.id,
-    record_date: recordDate,
-    feeding_time: category === "food" ? time : undefined,
+  const dailyRecordPayload: Database["public"]["Functions"]["save_daily_health_record_log"]["Args"] = {
+    p_cat_id: catId,
+    p_record_date: recordDate,
+    p_feeding_time: category === "food" ? time : null,
     ...baseUpdate,
   };
 
-  const { error: recordError } = await supabase
-    .from("daily_health_records")
-    .upsert(upsertPayload, {
-      onConflict: "cat_id,record_date",
-    });
+  // ### merge through the database so accumulating same-day fields cannot race or overwrite prior logs
+  const { error: recordError } = await supabase.rpc("save_daily_health_record_log", dailyRecordPayload);
 
   if (recordError) {
     throw recordError;
