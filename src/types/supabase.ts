@@ -598,7 +598,26 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      save_daily_health_record_log: {
+        Args: {
+          p_abnormal_behavior?: boolean | null;
+          p_abnormal_behavior_note?: string | null;
+          p_activity_score?: number | null;
+          p_appetite_score?: number | null;
+          p_cat_id: string;
+          p_feeding_time?: string | null;
+          p_food_amount_grams?: number | null;
+          p_food_type?: Database["public"]["Enums"]["cat_diet"] | null;
+          p_medication_taken?:
+            | Database["public"]["Enums"]["medication_status_type"]
+            | null;
+          p_notes?: string | null;
+          p_record_date: string;
+          p_vomit_times_delta?: number | null;
+          p_weight_kg?: number | null;
+        };
+        Returns: Database["public"]["Tables"]["daily_health_records"]["Row"];
+      };
     };
     Enums: {
       alert_delivery_status_type: "pending" | "sent" | "failed" | "skipped";
