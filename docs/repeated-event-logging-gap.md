@@ -1,7 +1,7 @@
-# Daily Aggregation Logging Gap
+# Daily Aggregation Logging Behavior
 
 ## Purpose
-This document records a known product-to-implementation gap in MVP 1.0 so future agents and human contributors can fix it without guessing.
+This document records the MVP 1.0 same-day quick-log aggregation behavior so future agents and human contributors can extend it without guessing.
 
 ## Problem Summary
 The product expects several quick-log categories to roll up into one same-day `daily_health_record`.
@@ -38,19 +38,19 @@ Example:
 - urine should remain one daily value such as total frequency for the day, not a parallel set of per-event rows in MVP 1.0
 - if the user edits or re-logs it the same day, the product should preserve one final daily value rather than pretending they are separate event records
 
-## Current Implementation Gap
+## Implemented MVP Behavior
 Current behavior:
-- some quick-log saves derive values only from the latest form submission
-- the save flow upserts the same daily record for the date
-- the current implementation does not yet provide one clear product rule for which fields should accumulate and which should overwrite the daily value
-- vomiting is one confirmed example where separate same-day submissions do not reliably increment the existing count
+- quick-log saves read the current same-day `daily_health_record` before the final upsert
+- accumulating fields merge with the existing value before writing
+- single-daily-value fields still resolve to one value on the daily record
+- notes from separate same-day quick logs append so earlier context is not silently erased
 
-This means:
-- first vomiting log can save `vomit_times = 1`
-- second vomiting log can save `vomit_times = 1` again instead of accumulating to `2`
-- the database may still show only one vomiting event for that day
-- the `vomit_times >= 2` rule may fail to trigger even though the user logged two separate vomiting events
-- the same design risk can also affect other multi-entry same-day categories such as food intake totals
+Confirmed MVP aggregation rules:
+- first vomiting log saves `vomit_times = 1`
+- a second same-day vomiting log increments the same daily row to `vomit_times = 2`
+- a vomiting log marked "Repeated today" records at least two same-day vomiting events
+- non-vomiting abnormal-event logs do not reset an existing same-day `vomit_times` value
+- same-day food logs in grams add into `daily_health_record.food_amount_grams`
 
 ## Why This Matters
 - It can undercount important abnormal events.
@@ -59,12 +59,12 @@ This means:
 - It can make dashboard feedback inaccurate.
 - It can make the 7/14/30 day summary and PDF export inconsistent with what the user believes they logged.
 
-## Required Fix Direction
+## Extension Direction
 Keep the MVP data model:
 - continue using separate quick-log entry points in the UI
 - continue using one `daily_health_record` table as the main daily source of truth
 
-Fix the write behavior:
+When extending write behavior:
 - define per-field daily aggregation behavior explicitly
 - when the user logs another same-day entry for an accumulating field, the system should read or preserve the existing daily value and add or combine correctly
 - when the user logs another same-day entry for a single-daily-value field, the system should preserve one coherent daily value instead of treating it like a new parallel event row
