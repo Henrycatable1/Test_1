@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { sendEmail } from "../_shared/email.ts";
+import { requireServiceRoleAuthorization } from "../_shared/worker-auth.ts";
 
 type DeliveryRow = {
   id: string;
@@ -74,8 +75,14 @@ function buildDigestEmail(languageCode: "en" | "zh-TW", alerts: AlertRow[]) {
   return { subject, html };
 }
 
-serve(async () => {
+serve(async (request) => {
   try {
+    const unauthorizedResponse = requireServiceRoleAuthorization(request, serviceRoleKey);
+
+    if (unauthorizedResponse) {
+      return unauthorizedResponse;
+    }
+
     const { data: pendingDeliveries, error: deliveryError } = await admin
       .from("alert_deliveries")
       .select("id, alert_id, user_id, delivery_group_key")
@@ -143,19 +150,12 @@ serve(async () => {
         continue;
       }
 
-      const digestAlerts = userDeliveries
+      const digestDeliveries = userDeliveries.filter((delivery) => alertMap.has(delivery.alert_id));
+      const digestAlerts = digestDeliveries
         .map((delivery) => alertMap.get(delivery.alert_id))
         .filter((alert): alert is AlertRow => Boolean(alert));
 
       if (digestAlerts.length === 0) {
-        await admin
-          .from("alert_deliveries")
-          .update({
-            delivery_status: "skipped",
-            error_message: "No eligible non-emergency alerts were available for digest delivery.",
-          })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
-
         skipped += userDeliveries.length;
         continue;
       }
@@ -175,9 +175,9 @@ serve(async () => {
             delivery_status: "sent",
             delivered_at: new Date().toISOString(),
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", digestDeliveries.map((delivery) => delivery.id));
 
-        sent += userDeliveries.length;
+        sent += digestDeliveries.length;
       } catch (error) {
         await admin
           .from("alert_deliveries")
@@ -185,7 +185,7 @@ serve(async () => {
             delivery_status: "failed",
             error_message: error instanceof Error ? error.message : String(error),
           })
-          .in("id", userDeliveries.map((delivery) => delivery.id));
+          .in("id", digestDeliveries.map((delivery) => delivery.id));
       }
     }
 
