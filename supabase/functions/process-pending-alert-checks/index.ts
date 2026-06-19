@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { requireServiceRole } from "../_shared/function-auth.ts";
+
 type QueueRow = {
   cat_id: string;
   due_at: string;
@@ -25,7 +27,25 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const workerBatchSize = 20;
 const retryDelayMs = 30_000;
+const staleClaimMs = 5 * 60_000;
 const checkAlertsUrl = `${supabaseUrl}/functions/v1/check-alerts`;
+
+// ### recover rows abandoned by a crashed worker so future alerts are not blocked forever
+async function recoverStaleClaims(referenceTime: string) {
+  const staleBefore = new Date(new Date(referenceTime).getTime() - staleClaimMs).toISOString();
+  const { error } = await admin
+    .from("cat_alert_evaluation_queue")
+    .update({
+      processing_started_at: null,
+      processing_version: null,
+      last_error: "Recovered a stale alert evaluation claim.",
+    })
+    .lt("processing_started_at", staleBefore);
+
+  if (error) {
+    throw error;
+  }
+}
 
 async function loadDueRows(referenceTime: string) {
   const { data, error } = await admin
@@ -90,7 +110,7 @@ async function runAlertCheck(catId: string) {
   return await response.json();
 }
 
-async function clearClaim(catId: string, lastError: string | null) {
+async function clearClaim(catId: string, processingVersion: number | null, lastError: string | null) {
   const { error } = await admin
     .from("cat_alert_evaluation_queue")
     .update({
@@ -98,7 +118,8 @@ async function clearClaim(catId: string, lastError: string | null) {
       processing_version: null,
       last_error: lastError,
     })
-    .eq("cat_id", catId);
+    .eq("cat_id", catId)
+    .eq("processing_version", processingVersion);
 
   if (error) {
     throw error;
@@ -123,7 +144,7 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
   const hasNewerActivity = currentRow.activity_version !== row.processing_version;
 
   if (hasNewerActivity) {
-    await clearClaim(row.cat_id, errorMessage);
+    await clearClaim(row.cat_id, row.processing_version, errorMessage);
     return;
   }
 
@@ -158,9 +179,16 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
   }
 }
 
-serve(async () => {
+serve(async (request) => {
   try {
+    const authError = requireServiceRole(request, serviceRoleKey);
+
+    if (authError) {
+      return authError;
+    }
+
     const referenceTime = new Date().toISOString();
+    await recoverStaleClaims(referenceTime);
     const dueRows = await loadDueRows(referenceTime);
     let processed = 0;
     let skipped = 0;

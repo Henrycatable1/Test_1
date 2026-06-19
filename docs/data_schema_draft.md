@@ -469,6 +469,7 @@ Implement the alert workflow in Edge Functions, not in client code and not in he
 ### `check-alerts`
 Responsibilities:
 - evaluate alerts for one cat or all cats when explicitly invoked
+- require a service-role Authorization header because the function uses privileged backend access
 - fetch recent `daily_health_records` per cat
 - load the rules config mirrored from `docs/alert_rules.json`
 - evaluate single-metric and combination rules
@@ -483,9 +484,11 @@ Responsibilities:
 ### `process-pending-alert-checks`
 Responsibilities:
 - run on a short schedule, such as every 30 seconds
+- require a service-role Authorization header; the `pg_cron` invoker should read `service_role_key` from Supabase Vault
 - fetch due rows from `cat_alert_evaluation_queue`
 - invoke `check-alerts` for each due `cat_id`
 - mark the queue row as processed or store the latest worker error
+- recover stale claimed rows after a worker crash or timeout so future alert checks are not blocked indefinitely
 - skip rows whose `due_at` has moved forward because newer logging happened
 
 ### Logging debounce flow
@@ -501,9 +504,10 @@ This gives the app a unified review window while avoiding duplicate alert work d
 ### `send-alert-digests`
 Responsibilities:
 - run daily
+- require a service-role Authorization header because the function reads and writes delivery rows across users
 - group non-emergency pending deliveries per user
 - send one email per user per day
-- mark `alert_deliveries` rows as sent, failed, or skipped
+- mark only digest-eligible non-emergency `alert_deliveries` rows as sent, failed, or skipped
 
 ### Emergency alerts
 For emergency alerts:
