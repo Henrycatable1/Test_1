@@ -466,6 +466,10 @@ Example shape:
 ## Edge Functions
 Implement the alert workflow in Edge Functions, not in client code and not in heavy SQL triggers.
 
+### Worker authorization
+- `check-alerts`, `process-pending-alert-checks`, and `send-alert-digests` use service-role clients and must reject public anon/authenticated callers.
+- Scheduled or internal invocations must send `Authorization: Bearer <service_role_key>` from the Supabase Vault `service_role_key` secret.
+
 ### `check-alerts`
 Responsibilities:
 - evaluate alerts for one cat or all cats when explicitly invoked

@@ -1,8 +1,12 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LogItemId } from "@/types/domain";
-import type { TablesInsert, TablesUpdate } from "@/types/supabase";
+import type { Tables, TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
+type ExistingDailyRecord = Pick<
+  Tables<"daily_health_records">,
+  "abnormal_behavior_note" | "food_amount_grams" | "notes" | "vomit_times"
+>;
 
 function getRecordDateParts(occurredAt: string) {
   const date = new Date(occurredAt);
@@ -22,7 +26,13 @@ function toNumber(value: string | boolean | undefined) {
     return null;
   }
 
-  const parsed = Number(value);
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -40,6 +50,10 @@ function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records">
   const appetite =
     values.appetite === "high" ? 4 : values.appetite === "reduced" ? 2 : values.appetite === "normal" ? 3 : null;
   const amount = toNumber(values.amount);
+  const recordUpdate: TablesUpdate<"daily_health_records"> = {
+    food_type: foodType,
+    appetite_score: appetite,
+  };
   const noteSegments = [
     typeof values.notes === "string" ? values.notes : null,
     typeof values.unit === "string" && values.unit !== "g" && amount !== null
@@ -50,12 +64,13 @@ function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records">
       : null,
   ];
 
-  return {
-    food_type: foodType,
-    food_amount_grams: typeof values.unit === "string" && values.unit === "g" ? amount : null,
-    appetite_score: appetite,
-    notes: appendNotes(...noteSegments) || null,
-  };
+  if (typeof values.unit === "string" && values.unit === "g" && amount !== null) {
+    recordUpdate.food_amount_grams = amount;
+  }
+
+  recordUpdate.notes = appendNotes(...noteSegments) || null;
+
+  return recordUpdate;
 }
 
 function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -78,9 +93,7 @@ function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_recor
 function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_records"> {
   const eventType = typeof values.eventType === "string" ? values.eventType : "other";
   const repeated = values.repeatedToday === true;
-
-  return {
-    vomit_times: eventType === "vomiting" ? (repeated ? 2 : 1) : 0,
+  const recordUpdate: TablesUpdate<"daily_health_records"> = {
     abnormal_behavior: true,
     abnormal_behavior_note:
       appendNotes(
@@ -95,6 +108,12 @@ function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_recor
         eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
       ) || null,
   };
+
+  if (eventType === "vomiting") {
+    recordUpdate.vomit_times = repeated ? 2 : 1;
+  }
+
+  return recordUpdate;
 }
 
 function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -118,17 +137,23 @@ function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_rec
 }
 
 function mapWeightValues(values: FormValues): TablesUpdate<"daily_health_records"> {
-  return {
-    weight_kg: toNumber(values.weightKg),
+  const weightKg = toNumber(values.weightKg);
+  const recordUpdate: TablesUpdate<"daily_health_records"> = {
     notes:
       appendNotes(
         typeof values.notes === "string" ? values.notes : null,
         typeof values.scaleSource === "string" ? `Scale source: ${values.scaleSource}.` : null,
       ) || null,
   };
+
+  if (weightKg !== null) {
+    recordUpdate.weight_kg = weightKg;
+  }
+
+  return recordUpdate;
 }
 
-function mapDailyRecordValues(
+export function mapDailyRecordValues(
   category: Exclude<LogItemId, "vet_visit">,
   values: FormValues,
 ): TablesUpdate<"daily_health_records"> {
@@ -150,6 +175,47 @@ function getReviewMessage(catId: string) {
   void catId;
 
   return "We're reviewing today's log now. Give us a moment for updated feedback and alerts.";
+}
+
+export function mergeDailyRecordValues(
+  update: TablesUpdate<"daily_health_records">,
+  existingRecord: ExistingDailyRecord | null,
+): TablesUpdate<"daily_health_records"> {
+  if (!existingRecord) {
+    return update;
+  }
+
+  const mergedUpdate = { ...update };
+
+  if (update.food_amount_grams !== undefined && update.food_amount_grams !== null) {
+    mergedUpdate.food_amount_grams = (existingRecord.food_amount_grams ?? 0) + update.food_amount_grams;
+  }
+
+  if (update.vomit_times !== undefined) {
+    const existingVomitTimes = existingRecord.vomit_times ?? 0;
+    mergedUpdate.vomit_times =
+      update.vomit_times === 1
+        ? existingVomitTimes + 1
+        : Math.max(existingVomitTimes, update.vomit_times);
+  }
+
+  // ### preserve same-day narrative context when quick logs collapse into one daily record
+  if (update.notes) {
+    mergedUpdate.notes = appendNotes(existingRecord.notes, update.notes) || null;
+  } else if (existingRecord.notes) {
+    delete mergedUpdate.notes;
+  }
+
+  if (update.abnormal_behavior_note) {
+    mergedUpdate.abnormal_behavior_note = appendNotes(
+      existingRecord.abnormal_behavior_note,
+      update.abnormal_behavior_note,
+    ) || null;
+  } else if (existingRecord.abnormal_behavior_note) {
+    delete mergedUpdate.abnormal_behavior_note;
+  }
+
+  return mergedUpdate;
 }
 
 export async function saveLogEntry(category: LogItemId, values: FormValues) {
@@ -226,12 +292,24 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
   }
 
   const baseUpdate = mapDailyRecordValues(category, values as FormValues);
+  const { data: existingRecord, error: existingRecordError } = await supabase
+    .from("daily_health_records")
+    .select("abnormal_behavior_note, food_amount_grams, notes, vomit_times")
+    .eq("cat_id", catId)
+    .eq("record_date", recordDate)
+    .maybeSingle();
+
+  if (existingRecordError) {
+    throw existingRecordError;
+  }
+
+  const mergedUpdate = mergeDailyRecordValues(baseUpdate, existingRecord);
   const upsertPayload: TablesInsert<"daily_health_records"> = {
     cat_id: catId,
     created_by: user.id,
     record_date: recordDate,
     feeding_time: category === "food" ? time : undefined,
-    ...baseUpdate,
+    ...mergedUpdate,
   };
 
   const { error: recordError } = await supabase
