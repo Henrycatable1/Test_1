@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { sendEmail } from "../_shared/email.ts";
+import { requireServiceRoleBearer } from "../_shared/worker-auth.ts";
 
 type DeliveryRow = {
   id: string;
@@ -74,8 +75,14 @@ function buildDigestEmail(languageCode: "en" | "zh-TW", alerts: AlertRow[]) {
   return { subject, html };
 }
 
-serve(async () => {
+serve(async (request) => {
   try {
+    const unauthorizedResponse = requireServiceRoleBearer(request, serviceRoleKey);
+
+    if (unauthorizedResponse) {
+      return unauthorizedResponse;
+    }
+
     const { data: pendingDeliveries, error: deliveryError } = await admin
       .from("alert_deliveries")
       .select("id, alert_id, user_id, delivery_group_key")
