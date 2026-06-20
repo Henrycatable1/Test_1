@@ -466,6 +466,10 @@ Example shape:
 ## Edge Functions
 Implement the alert workflow in Edge Functions, not in client code and not in heavy SQL triggers.
 
+All alert Edge Functions use a service-role Supabase client and must reject requests unless
+the `Authorization` bearer token matches `SUPABASE_SERVICE_ROLE_KEY`. Scheduled database
+invocations should load the same service-role key from Vault.
+
 ### `check-alerts`
 Responsibilities:
 - evaluate alerts for one cat or all cats when explicitly invoked
