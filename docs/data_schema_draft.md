@@ -466,6 +466,10 @@ Example shape:
 ## Edge Functions
 Implement the alert workflow in Edge Functions, not in client code and not in heavy SQL triggers.
 
+All alert workflow Edge Functions run with service-role data access. They must reject requests unless the
+caller presents the service-role bearer token; scheduled SQL wrappers should load that token from Vault
+rather than using the public anon key.
+
 ### `check-alerts`
 Responsibilities:
 - evaluate alerts for one cat or all cats when explicitly invoked
