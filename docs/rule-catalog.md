@@ -146,6 +146,7 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
 - Edge cases:
   - collaborators should only receive emails if they can view the cat and have opted in
   - per-user delivery state should be tracked separately from the alert row
+  - privileged alert evaluation and immediate email delivery must only run from service-role-authorized worker calls
 - Example scenarios:
   - a shared cat enters emergency status and both the owner and caretaker receive the urgent email
 - Related log item IDs: daily_health_record, vet_visit
@@ -165,6 +166,7 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
 - Edge cases:
   - skip users who did not opt into daily digests
   - do not send one email per alert
+  - digest sending must only run from service-role-authorized scheduled or internal worker calls
 - Example scenarios:
   - a user has two caution alerts and one vet reminder for the same day, so they receive a single digest email
 - Related log item IDs: daily_health_record, vet_visit
