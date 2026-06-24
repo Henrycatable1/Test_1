@@ -27,7 +27,24 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const workerBatchSize = 20;
 const retryDelayMs = 30_000;
+const staleClaimMs = 5 * 60_000;
 const checkAlertsUrl = `${supabaseUrl}/functions/v1/check-alerts`;
+
+async function clearStaleClaims(referenceTime: string) {
+  const staleBefore = new Date(new Date(referenceTime).getTime() - staleClaimMs).toISOString();
+  const { error } = await admin
+    .from("cat_alert_evaluation_queue")
+    .update({
+      processing_started_at: null,
+      processing_version: null,
+      last_error: "Recovered stale alert evaluation claim.",
+    })
+    .lte("processing_started_at", staleBefore);
+
+  if (error) {
+    throw error;
+  }
+}
 
 async function loadDueRows(referenceTime: string) {
   const { data, error } = await admin
@@ -169,6 +186,8 @@ serve(async (request) => {
 
   try {
     const referenceTime = new Date().toISOString();
+    await clearStaleClaims(referenceTime);
+
     const dueRows = await loadDueRows(referenceTime);
     let processed = 0;
     let skipped = 0;
