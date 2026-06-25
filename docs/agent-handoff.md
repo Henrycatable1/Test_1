@@ -27,20 +27,19 @@ This file helps future agents understand the product, architecture direction, co
   - database writes enqueue one pending evaluation row per cat in `cat_alert_evaluation_queue`
   - the backend waits for 30 seconds of inactivity before running `check-alerts`
   - `pg_cron` schedules `process-pending-alert-checks` every 30 seconds
+  - worker Edge Functions require a service-role bearer token before any service-role reads or writes
   - the logging UI, dashboard, and profile surfaces can show that today's logs are being reviewed
+- Same-day quick-log submissions now merge into the existing `daily_health_record` for that cat and date:
+  - `vomit_times` accumulates across repeated vomiting logs
+  - gram-based `food_amount_grams` accumulates across same-day food logs
+  - new notes append to existing same-day notes instead of replacing earlier context
+  - unrelated daily fields from other quick-log categories are preserved
 - The queue-based debounce flow was validated end to end against the live Supabase project:
   - burst logging collapsed into one queued evaluation window
   - due queue rows triggered alert evaluation correctly
   - caution alerts flowed into digest delivery for the owner only
   - emergency alerts sent immediate emails to both owner and collaborator when preferences allowed
   - disposable validation records were cleaned up after testing, so the project was returned to an empty data state
-- Known MVP gap:
-  - same-day quick-log submissions do not yet have one explicit and fully implemented daily-aggregation rule across all relevant fields
-  - this affects more than abnormal events and can also apply to daily totals such as food intake
-  - some fields should accumulate across same-day submissions, while others should remain one daily value for the day
-  - current confirmed examples are: `vomit_times` should accumulate, food totals should accumulate, and `urine_times` should remain one daily value for MVP 1.0
-  - this can prevent expected cat-state changes or produce inaccurate summaries when the same item is logged multiple times separately in one day
-  - see `docs/repeated-event-logging-gap.md` before changing same-day quick-log write behavior
 - `.env.example` now includes:
   - `SUPABASE_SERVICE_ROLE_KEY`
   - `RESEND_API_KEY`

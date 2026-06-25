@@ -469,6 +469,7 @@ Implement the alert workflow in Edge Functions, not in client code and not in he
 ### `check-alerts`
 Responsibilities:
 - evaluate alerts for one cat or all cats when explicitly invoked
+- require a service-role bearer token before using service-role data access
 - fetch recent `daily_health_records` per cat
 - load the rules config mirrored from `docs/alert_rules.json`
 - evaluate single-metric and combination rules
@@ -483,6 +484,7 @@ Responsibilities:
 ### `process-pending-alert-checks`
 Responsibilities:
 - run on a short schedule, such as every 30 seconds
+- require a service-role bearer token from the scheduler
 - fetch due rows from `cat_alert_evaluation_queue`
 - invoke `check-alerts` for each due `cat_id`
 - mark the queue row as processed or store the latest worker error
@@ -501,6 +503,7 @@ This gives the app a unified review window while avoiding duplicate alert work d
 ### `send-alert-digests`
 Responsibilities:
 - run daily
+- require a service-role bearer token from the scheduler
 - group non-emergency pending deliveries per user
 - send one email per user per day
 - mark `alert_deliveries` rows as sent, failed, or skipped
