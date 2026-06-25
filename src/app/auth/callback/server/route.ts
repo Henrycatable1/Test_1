@@ -3,25 +3,16 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { toSafeRedirectPath } from "@/features/auth/lib/redirect-path";
 import { getSupabaseEnv } from "@/lib/env";
 import type { Database } from "@/types/supabase";
-
-function toSafeNextPath(input: string | null) {
-  const normalizedInput = input?.trim() ?? null;
-
-  if (!normalizedInput || !normalizedInput.startsWith("/")) {
-    return "/dashboard";
-  }
-
-  return normalizedInput;
-}
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const otpType = requestUrl.searchParams.get("type");
-  const nextPath = toSafeNextPath(requestUrl.searchParams.get("next"));
+  const nextPath = toSafeRedirectPath(requestUrl.searchParams.get("next"));
   const headerStore = await headers();
   const requestHost = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
   const requestProtocol = headerStore.get("x-forwarded-proto") ?? requestUrl.protocol.replace(":", "");

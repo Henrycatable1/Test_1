@@ -8,7 +8,7 @@ The product expects several quick-log categories to roll up into one same-day `d
 
 With the current one-row-per-day `daily_health_record` model, this should still work.
 
-However, the current logging implementation does not yet clearly and reliably handle the difference between:
+The logging implementation must clearly and reliably handle the difference between:
 - fields that should accumulate across multiple same-day submissions
 - fields that should represent one daily value for the day
 
@@ -38,14 +38,14 @@ Example:
 - urine should remain one daily value such as total frequency for the day, not a parallel set of per-event rows in MVP 1.0
 - if the user edits or re-logs it the same day, the product should preserve one final daily value rather than pretending they are separate event records
 
-## Current Implementation Gap
-Current behavior:
-- some quick-log saves derive values only from the latest form submission
-- the save flow upserts the same daily record for the date
-- the current implementation does not yet provide one clear product rule for which fields should accumulate and which should overwrite the daily value
-- vomiting is one confirmed example where separate same-day submissions do not reliably increment the existing count
+## Implementation Rule
+The quick-log save path must merge against the existing same-day row before writing:
+- accumulating fields add the new value to the existing daily value
+- single-daily-value fields keep one final value for the day
+- note fields append new context instead of replacing earlier same-day notes
+- unrelated fields from other categories must be preserved
 
-This means:
+Without this merge behavior:
 - first vomiting log can save `vomit_times = 1`
 - second vomiting log can save `vomit_times = 1` again instead of accumulating to `2`
 - the database may still show only one vomiting event for that day
