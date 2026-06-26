@@ -106,7 +106,7 @@ set search_path = ''
 as $$
 declare
   project_url text;
-  anon_key text;
+  service_role_key text;
   request_id bigint;
 begin
   select decrypted_secret
@@ -116,20 +116,20 @@ begin
   limit 1;
 
   select decrypted_secret
-  into anon_key
+  into service_role_key
   from vault.decrypted_secrets
-  where name = 'anon_key'
+  where name = 'service_role_key'
   limit 1;
 
-  if project_url is null or anon_key is null then
-    raise exception 'Missing vault secrets project_url or anon_key for alert worker scheduling.';
+  if project_url is null or service_role_key is null then
+    raise exception 'Missing vault secrets project_url or service_role_key for alert worker scheduling.';
   end if;
 
   select net.http_post(
     url := project_url || '/functions/v1/process-pending-alert-checks',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || anon_key
+      'Authorization', 'Bearer ' || service_role_key
     ),
     body := jsonb_build_object(
       'source', 'pg_cron',

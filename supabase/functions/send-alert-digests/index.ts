@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { requireServiceRoleRequest } from "../_shared/function-auth.ts";
 import { sendEmail } from "../_shared/email.ts";
 
 type DeliveryRow = {
@@ -74,7 +75,13 @@ function buildDigestEmail(languageCode: "en" | "zh-TW", alerts: AlertRow[]) {
   return { subject, html };
 }
 
-serve(async () => {
+serve(async (request) => {
+  const unauthorizedResponse = requireServiceRoleRequest(request, serviceRoleKey);
+
+  if (unauthorizedResponse) {
+    return unauthorizedResponse;
+  }
+
   try {
     const { data: pendingDeliveries, error: deliveryError } = await admin
       .from("alert_deliveries")
