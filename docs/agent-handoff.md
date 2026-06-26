@@ -26,7 +26,8 @@ This file helps future agents understand the product, architecture direction, co
 - Alert evaluation now uses a server-side debounce model:
   - database writes enqueue one pending evaluation row per cat in `cat_alert_evaluation_queue`
   - the backend waits for 30 seconds of inactivity before running `check-alerts`
-  - `pg_cron` schedules `process-pending-alert-checks` every 30 seconds
+  - `pg_cron` schedules `process-pending-alert-checks` every 30 seconds with the service-role key stored in Vault as `service_role_key`
+  - alert Edge Functions reject public anon-client calls before running service-role reads or writes
   - the logging UI, dashboard, and profile surfaces can show that today's logs are being reviewed
 - The queue-based debounce flow was validated end to end against the live Supabase project:
   - burst logging collapsed into one queued evaluation window

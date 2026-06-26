@@ -465,6 +465,7 @@ Example shape:
 
 ## Edge Functions
 Implement the alert workflow in Edge Functions, not in client code and not in heavy SQL triggers.
+Because these functions use service-role database access, they must require an internal service-role bearer token and must not accept public anon-client invocations.
 
 ### `check-alerts`
 Responsibilities:

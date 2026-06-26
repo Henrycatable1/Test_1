@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 
+import { toSafeSignedInPath } from "@/lib/auth/redirects";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const supportedOtpTypes = new Set<EmailOtpType>([
@@ -14,14 +15,6 @@ const supportedOtpTypes = new Set<EmailOtpType>([
   "email_change",
   "email",
 ]);
-
-function toSafeNextPath(input: string | null) {
-  if (!input || !input.startsWith("/")) {
-    return "/dashboard";
-  }
-
-  return input;
-}
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -35,7 +28,7 @@ export default function AuthCallbackPage() {
       const code = currentUrl.searchParams.get("code");
       const tokenHash = currentUrl.searchParams.get("token_hash");
       const otpType = currentUrl.searchParams.get("type");
-      const nextPath = toSafeNextPath(currentUrl.searchParams.get("next"));
+      const nextPath = toSafeSignedInPath(currentUrl.searchParams.get("next"));
 
       try {
         // ### finalize code/token callbacks on the server so auth cookies are set by the redirect response
