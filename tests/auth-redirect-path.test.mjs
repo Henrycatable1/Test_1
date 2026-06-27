@@ -13,11 +13,11 @@ function loadRedirectPathModule() {
       target: ts.ScriptTarget.ES2020,
     },
   });
-  const module = { exports: {} };
+  const cjsModule = { exports: {} };
 
-  vm.runInNewContext(outputText, { exports: module.exports, module });
+  vm.runInNewContext(outputText, { exports: cjsModule.exports, module: cjsModule });
 
-  return module.exports;
+  return cjsModule.exports;
 }
 
 const { toSafeAuthRedirectPath } = loadRedirectPathModule();
