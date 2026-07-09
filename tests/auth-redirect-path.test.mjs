@@ -11,15 +11,15 @@ function loadTypeScriptModule(path) {
       target: ts.ScriptTarget.ES2022,
     },
   });
-  const module = { exports: {} };
+  const cjsModule = { exports: {} };
 
   vm.runInNewContext(outputText, {
-    exports: module.exports,
-    module,
+    exports: cjsModule.exports,
+    module: cjsModule,
     URL,
   });
 
-  return module.exports;
+  return cjsModule.exports;
 }
 
 const { toSafeNextPath } = loadTypeScriptModule("src/features/auth/lib/redirect-path.ts");

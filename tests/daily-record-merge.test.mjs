@@ -11,14 +11,14 @@ function loadTypeScriptModule(path) {
       target: ts.ScriptTarget.ES2022,
     },
   });
-  const module = { exports: {} };
+  const cjsModule = { exports: {} };
 
   vm.runInNewContext(outputText, {
-    exports: module.exports,
-    module,
+    exports: cjsModule.exports,
+    module: cjsModule,
   });
 
-  return module.exports;
+  return cjsModule.exports;
 }
 
 const { mergeDailyRecordUpdate } = loadTypeScriptModule("src/features/logging/lib/daily-record-merge.ts");
