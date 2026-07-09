@@ -2,6 +2,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LogItemId } from "@/types/domain";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
+import { mergeDailyRecordUpdate } from "./daily-record-merge";
+
 type FormValues = Record<string, string | boolean>;
 
 function getRecordDateParts(occurredAt: string) {
@@ -225,7 +227,23 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
     };
   }
 
-  const baseUpdate = mapDailyRecordValues(category, values as FormValues);
+  const { data: existingRecord, error: existingRecordError } = await supabase
+    .from("daily_health_records")
+    .select("food_amount_grams, vomit_times, notes, abnormal_behavior_note")
+    .eq("cat_id", catId)
+    .eq("record_date", recordDate)
+    .maybeSingle();
+
+  if (existingRecordError) {
+    throw existingRecordError;
+  }
+
+  // ### preserve same-day daily totals and notes when quick-log categories share one row
+  const baseUpdate = mergeDailyRecordUpdate(
+    category,
+    existingRecord,
+    mapDailyRecordValues(category, values as FormValues),
+  );
   const upsertPayload: TablesInsert<"daily_health_records"> = {
     cat_id: catId,
     created_by: user.id,

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test": "node tests/auth-redirect-path.test.mjs && node tests/daily-record-merge.test.mjs",
     "typecheck": "tsc --noEmit",
     "sync:alert-rules": "node scripts/sync-alert-rules.mjs"
   },
