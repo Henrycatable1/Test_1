@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { rulesConfig, type AlertLevel, type CombinationClause, type MatchRule, type SingleMetricCondition } from "../_shared/alert-rules.ts";
 import { sendEmail } from "../_shared/email.ts";
+import { authorizeWorkerRequest } from "../_shared/worker-auth.ts";
 
 type CatRow = {
   id: string;
@@ -49,6 +50,13 @@ type Recipient = {
   language_code: "en" | "zh-TW";
   email_important_alerts: boolean;
   email_daily_digest: boolean;
+};
+
+type AlertDeliveryRow = {
+  id: string;
+  alert_id: string;
+  user_id: string;
+  delivery_status: string;
 };
 
 type EvaluatedEvent = {
@@ -591,6 +599,30 @@ async function deactivatePreviousAlerts(catId: string, latestDate: string) {
   }
 }
 
+function toPostgrestInList(values: string[]) {
+  return `(${values.map((value) => `"${value.replaceAll("\"", "\\\"")}"`).join(",")})`;
+}
+
+async function deactivateResolvedAlerts(catId: string, alertDate: string, activeRuleKeys: string[]) {
+  let query = admin
+    .from("alerts")
+    .update({ is_active: false })
+    .eq("cat_id", catId)
+    .eq("alert_date", alertDate)
+    .eq("is_active", true);
+
+  // ### clear same-day alerts whose rule no longer matches after the latest daily record update
+  if (activeRuleKeys.length > 0) {
+    query = query.not("rule_key", "in", toPostgrestInList(activeRuleKeys));
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function upsertAlertVariants(
   catId: string,
   event: EvaluatedEvent,
@@ -693,19 +725,31 @@ async function createAlertDeliveries(
     throw error;
   }
 
-  return (data ?? []) as Array<{ id: string; alert_id: string; user_id: string; delivery_status: string }>;
+  return (data ?? []) as AlertDeliveryRow[];
 }
 
 async function sendEmergencyEmails(
   alertVariants: Map<"en" | "zh-TW", { id: string; message: string; alert_level: AlertLevel; alert_date: string }>,
   recipients: Recipient[],
+  deliveryRows: AlertDeliveryRow[],
 ) {
   const emergencyRecipients = recipients.filter((recipient) => recipient.email && recipient.email_important_alerts);
+  const pendingDeliveriesByRecipient = new Map(
+    deliveryRows
+      .filter((delivery) => delivery.delivery_status === "pending")
+      .map((delivery) => [`${delivery.alert_id}:${delivery.user_id}`, delivery]),
+  );
 
   for (const recipient of emergencyRecipients) {
     const preferredAlert = alertVariants.get(recipient.language_code) ?? alertVariants.get("en");
 
     if (!preferredAlert || !recipient.email) {
+      continue;
+    }
+
+    const pendingDelivery = pendingDeliveriesByRecipient.get(`${preferredAlert.id}:${recipient.user_id}`);
+
+    if (!pendingDelivery) {
       continue;
     }
 
@@ -732,9 +776,7 @@ async function sendEmergencyEmails(
           delivery_status: "sent",
           delivered_at: new Date().toISOString(),
         })
-        .eq("alert_id", preferredAlert.id)
-        .eq("user_id", recipient.user_id)
-        .eq("channel", "email");
+        .eq("id", pendingDelivery.id);
     } catch (error) {
       await admin
         .from("alert_deliveries")
@@ -742,9 +784,7 @@ async function sendEmergencyEmails(
           delivery_status: "failed",
           error_message: error instanceof Error ? error.message : String(error),
         })
-        .eq("alert_id", preferredAlert.id)
-        .eq("user_id", recipient.user_id)
-        .eq("channel", "email");
+        .eq("id", pendingDelivery.id);
     }
   }
 }
@@ -818,6 +858,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
   if (events.length === 0) {
     if (!dryRun) {
       await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+      await deactivateResolvedAlerts(cat.id, latestRecord.record_date, []);
     }
 
     return {
@@ -837,13 +878,18 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
   }
 
   await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+  await deactivateResolvedAlerts(
+    cat.id,
+    latestRecord.record_date,
+    Array.from(new Set(events.map((event) => event.ruleKey))),
+  );
 
   for (const event of events) {
     const alertVariants = await upsertAlertVariants(cat.id, event, latestRecord.id, messageMap);
-    await createAlertDeliveries(event, alertVariants, recipients);
+    const deliveryRows = await createAlertDeliveries(event, alertVariants, recipients);
 
     if (event.level === "emergency") {
-      await sendEmergencyEmails(alertVariants, recipients);
+      await sendEmergencyEmails(alertVariants, recipients, deliveryRows);
     }
   }
 
@@ -856,6 +902,12 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 }
 
 serve(async (request) => {
+  const unauthorizedResponse = authorizeWorkerRequest(request, serviceRoleKey);
+
+  if (unauthorizedResponse) {
+    return unauthorizedResponse;
+  }
+
   try {
     const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
     const dryRun = Boolean(body.dryRun);
