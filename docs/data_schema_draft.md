@@ -466,6 +466,8 @@ Example shape:
 ## Edge Functions
 Implement the alert workflow in Edge Functions, not in client code and not in heavy SQL triggers.
 
+Worker functions that use the Supabase service-role key must require `Authorization: Bearer <service_role_key>` before any service-role reads or writes. Browser code and public anon-key callers must not invoke these workers directly.
+
 ### `check-alerts`
 Responsibilities:
 - evaluate alerts for one cat or all cats when explicitly invoked
@@ -484,6 +486,7 @@ Responsibilities:
 Responsibilities:
 - run on a short schedule, such as every 30 seconds
 - fetch due rows from `cat_alert_evaluation_queue`
+- reclaim rows whose worker claim has timed out so a crashed invocation does not block future evaluations
 - invoke `check-alerts` for each due `cat_id`
 - mark the queue row as processed or store the latest worker error
 - skip rows whose `due_at` has moved forward because newer logging happened

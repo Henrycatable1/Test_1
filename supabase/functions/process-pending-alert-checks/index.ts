@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { authorizeWorkerRequest } from "../_shared/worker-auth.mjs";
+
 type QueueRow = {
   cat_id: string;
   due_at: string;
@@ -25,16 +27,21 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const workerBatchSize = 20;
 const retryDelayMs = 30_000;
+const staleClaimDelayMs = 5 * 60_000;
 const checkAlertsUrl = `${supabaseUrl}/functions/v1/check-alerts`;
 
-async function loadDueRows(referenceTime: string) {
+function getStaleClaimCutoff(referenceTime: string) {
+  return new Date(new Date(referenceTime).getTime() - staleClaimDelayMs).toISOString();
+}
+
+async function loadUnclaimedDueRows(referenceTime: string, limit: number) {
   const { data, error } = await admin
     .from("cat_alert_evaluation_queue")
     .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
     .lte("due_at", referenceTime)
     .is("processing_started_at", null)
     .order("due_at", { ascending: true })
-    .limit(workerBatchSize);
+    .limit(limit);
 
   if (error) {
     throw error;
@@ -43,10 +50,43 @@ async function loadDueRows(referenceTime: string) {
   return (data ?? []) as QueueRow[];
 }
 
+async function loadStaleClaimDueRows(referenceTime: string, staleClaimCutoff: string, limit: number) {
+  const { data, error } = await admin
+    .from("cat_alert_evaluation_queue")
+    .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
+    .lte("due_at", referenceTime)
+    .lt("processing_started_at", staleClaimCutoff)
+    .order("due_at", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as QueueRow[];
+}
+
+// ### include timed-out claims so a crashed worker cannot starve future alerts for a cat
+async function loadDueRows(referenceTime: string) {
+  const unclaimedRows = await loadUnclaimedDueRows(referenceTime, workerBatchSize);
+
+  if (unclaimedRows.length >= workerBatchSize) {
+    return unclaimedRows;
+  }
+
+  const staleClaimRows = await loadStaleClaimDueRows(
+    referenceTime,
+    getStaleClaimCutoff(referenceTime),
+    workerBatchSize - unclaimedRows.length,
+  );
+
+  return [...unclaimedRows, ...staleClaimRows];
+}
+
 // ### claim each row defensively so overlapping worker runs do not process the same cat twice
 async function claimRow(row: QueueRow, referenceTime: string) {
   const claimedAt = new Date().toISOString();
-  const { data, error } = await admin
+  let claimQuery = admin
     .from("cat_alert_evaluation_queue")
     .update({
       processing_started_at: claimedAt,
@@ -55,8 +95,15 @@ async function claimRow(row: QueueRow, referenceTime: string) {
     })
     .eq("cat_id", row.cat_id)
     .eq("activity_version", row.activity_version)
-    .is("processing_started_at", null)
-    .lte("due_at", referenceTime)
+    .lte("due_at", referenceTime);
+
+  if (row.processing_started_at) {
+    claimQuery = claimQuery.lt("processing_started_at", getStaleClaimCutoff(referenceTime));
+  } else {
+    claimQuery = claimQuery.is("processing_started_at", null);
+  }
+
+  const { data, error } = await claimQuery
     .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
     .maybeSingle();
 
@@ -158,7 +205,13 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
   }
 }
 
-serve(async () => {
+serve(async (request) => {
+  const unauthorizedResponse = authorizeWorkerRequest(request, serviceRoleKey);
+
+  if (unauthorizedResponse) {
+    return unauthorizedResponse;
+  }
+
   try {
     const referenceTime = new Date().toISOString();
     const dueRows = await loadDueRows(referenceTime);

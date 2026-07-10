@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { sendEmail } from "../_shared/email.ts";
+import { authorizeWorkerRequest } from "../_shared/worker-auth.mjs";
 
 type DeliveryRow = {
   id: string;
@@ -74,7 +75,13 @@ function buildDigestEmail(languageCode: "en" | "zh-TW", alerts: AlertRow[]) {
   return { subject, html };
 }
 
-serve(async () => {
+serve(async (request) => {
+  const unauthorizedResponse = authorizeWorkerRequest(request, serviceRoleKey);
+
+  if (unauthorizedResponse) {
+    return unauthorizedResponse;
+  }
+
   try {
     const { data: pendingDeliveries, error: deliveryError } = await admin
       .from("alert_deliveries")
