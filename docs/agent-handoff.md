@@ -23,10 +23,12 @@ This file helps future agents understand the product, architecture direction, co
   - `supabase/functions/check-alerts/index.ts`
   - `supabase/functions/send-alert-digests/index.ts`
   - `supabase/functions/process-pending-alert-checks/index.ts`
+- These service-role Edge Functions require `Authorization: Bearer <service_role_key>` and should only be invoked by trusted workers, schedules, or server-side tooling.
 - Alert evaluation now uses a server-side debounce model:
   - database writes enqueue one pending evaluation row per cat in `cat_alert_evaluation_queue`
   - the backend waits for 30 seconds of inactivity before running `check-alerts`
   - `pg_cron` schedules `process-pending-alert-checks` every 30 seconds
+  - stale worker claims are reclaimed so a timed-out invocation cannot permanently block a cat's future alert evaluation
   - the logging UI, dashboard, and profile surfaces can show that today's logs are being reviewed
 - The queue-based debounce flow was validated end to end against the live Supabase project:
   - burst logging collapsed into one queued evaluation window
