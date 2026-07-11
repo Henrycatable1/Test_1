@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { getWorkerAuthError, workerAuthErrorResponse } from "../_shared/worker-auth.mjs";
+
 type QueueRow = {
   cat_id: string;
   due_at: string;
@@ -25,7 +27,25 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const workerBatchSize = 20;
 const retryDelayMs = 30_000;
+const staleClaimMs = 5 * 60_000;
 const checkAlertsUrl = `${supabaseUrl}/functions/v1/check-alerts`;
+
+// ### release abandoned claims so a crashed worker cannot block future alert checks for a cat
+async function releaseStaleClaims(referenceTime: string) {
+  const staleBefore = new Date(new Date(referenceTime).getTime() - staleClaimMs).toISOString();
+  const { error } = await admin
+    .from("cat_alert_evaluation_queue")
+    .update({
+      processing_started_at: null,
+      processing_version: null,
+      last_error: "Released stale alert worker claim.",
+    })
+    .lt("processing_started_at", staleBefore);
+
+  if (error) {
+    throw error;
+  }
+}
 
 async function loadDueRows(referenceTime: string) {
   const { data, error } = await admin
@@ -158,9 +178,16 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
   }
 }
 
-serve(async () => {
+serve(async (request) => {
+  const authError = getWorkerAuthError(request, serviceRoleKey);
+
+  if (authError) {
+    return workerAuthErrorResponse(authError);
+  }
+
   try {
     const referenceTime = new Date().toISOString();
+    await releaseStaleClaims(referenceTime);
     const dueRows = await loadDueRows(referenceTime);
     let processed = 0;
     let skipped = 0;
