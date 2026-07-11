@@ -466,6 +466,8 @@ Example shape:
 ## Edge Functions
 Implement the alert workflow in Edge Functions, not in client code and not in heavy SQL triggers.
 
+All alert worker Edge Functions must reject public anon and user JWTs. Scheduled or backend invocations use `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>` from the server/Vault secret so only trusted backend jobs can create alerts, enqueue digest work, or send alert emails.
+
 ### `check-alerts`
 Responsibilities:
 - evaluate alerts for one cat or all cats when explicitly invoked
@@ -487,6 +489,7 @@ Responsibilities:
 - invoke `check-alerts` for each due `cat_id`
 - mark the queue row as processed or store the latest worker error
 - skip rows whose `due_at` has moved forward because newer logging happened
+- release stale processing claims before loading due work so an interrupted worker cannot permanently suppress alert evaluation
 
 ### Logging debounce flow
 When a user saves one or more logs:

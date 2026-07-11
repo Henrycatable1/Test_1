@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test": "node --test",
     "typecheck": "tsc --noEmit",
     "sync:alert-rules": "node scripts/sync-alert-rules.mjs"
   },
