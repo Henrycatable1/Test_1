@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { requireServiceRoleBearer } from "../_shared/worker-auth.ts";
+
 type QueueRow = {
   cat_id: string;
   due_at: string;
@@ -25,14 +27,19 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const workerBatchSize = 20;
 const retryDelayMs = 30_000;
+const staleClaimMs = 5 * 60_000;
 const checkAlertsUrl = `${supabaseUrl}/functions/v1/check-alerts`;
 
-async function loadDueRows(referenceTime: string) {
+function getClaimFilter(staleBefore: string) {
+  return `processing_started_at.is.null,processing_started_at.lt.${staleBefore}`;
+}
+
+async function loadDueRows(referenceTime: string, staleBefore: string) {
   const { data, error } = await admin
     .from("cat_alert_evaluation_queue")
     .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
     .lte("due_at", referenceTime)
-    .is("processing_started_at", null)
+    .or(getClaimFilter(staleBefore))
     .order("due_at", { ascending: true })
     .limit(workerBatchSize);
 
@@ -44,7 +51,7 @@ async function loadDueRows(referenceTime: string) {
 }
 
 // ### claim each row defensively so overlapping worker runs do not process the same cat twice
-async function claimRow(row: QueueRow, referenceTime: string) {
+async function claimRow(row: QueueRow, referenceTime: string, staleBefore: string) {
   const claimedAt = new Date().toISOString();
   const { data, error } = await admin
     .from("cat_alert_evaluation_queue")
@@ -55,8 +62,8 @@ async function claimRow(row: QueueRow, referenceTime: string) {
     })
     .eq("cat_id", row.cat_id)
     .eq("activity_version", row.activity_version)
-    .is("processing_started_at", null)
     .lte("due_at", referenceTime)
+    .or(getClaimFilter(staleBefore))
     .select("cat_id, due_at, activity_version, processing_started_at, processing_version")
     .maybeSingle();
 
@@ -158,16 +165,23 @@ async function finalizeClaim(row: QueueRow, errorMessage: string | null) {
   }
 }
 
-serve(async () => {
+serve(async (request) => {
+  const authorizationError = requireServiceRoleBearer(request, serviceRoleKey);
+
+  if (authorizationError) {
+    return authorizationError;
+  }
+
   try {
     const referenceTime = new Date().toISOString();
-    const dueRows = await loadDueRows(referenceTime);
+    const staleBefore = new Date(Date.now() - staleClaimMs).toISOString();
+    const dueRows = await loadDueRows(referenceTime, staleBefore);
     let processed = 0;
     let skipped = 0;
     let failed = 0;
 
     for (const row of dueRows) {
-      const claimedRow = await claimRow(row, referenceTime);
+      const claimedRow = await claimRow(row, referenceTime, staleBefore);
 
       if (!claimedRow) {
         skipped += 1;

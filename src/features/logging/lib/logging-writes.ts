@@ -1,8 +1,12 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LogItemId } from "@/types/domain";
-import type { TablesInsert, TablesUpdate } from "@/types/supabase";
+import type { Tables, TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
+type ExistingDailyRecord = Pick<
+  Tables<"daily_health_records">,
+  "food_amount_grams" | "vomit_times" | "notes" | "abnormal_behavior_note"
+>;
 
 function getRecordDateParts(occurredAt: string) {
   const date = new Date(occurredAt);
@@ -33,7 +37,10 @@ function appendNotes(...parts: Array<string | null | undefined>) {
     .join("\n");
 }
 
-function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records"> {
+function mapFoodValues(
+  values: FormValues,
+  existingRecord: ExistingDailyRecord | null,
+): TablesUpdate<"daily_health_records"> {
   const foodType = typeof values.foodType === "string" && ["dry", "wet", "both"].includes(values.foodType)
     ? (values.foodType as "dry" | "wet" | "both")
     : null;
@@ -50,12 +57,21 @@ function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records">
       : null,
   ];
 
-  return {
-    food_type: foodType,
-    food_amount_grams: typeof values.unit === "string" && values.unit === "g" ? amount : null,
+  const update: TablesUpdate<"daily_health_records"> = {
     appetite_score: appetite,
-    notes: appendNotes(...noteSegments) || null,
+    notes: appendNotes(existingRecord?.notes, ...noteSegments) || null,
   };
+
+  if (foodType) {
+    update.food_type = foodType;
+  }
+
+  // ### quick food logs are meal entries, so gram amounts roll up into the daily total
+  if (typeof values.unit === "string" && values.unit === "g" && amount !== null) {
+    update.food_amount_grams = (existingRecord?.food_amount_grams ?? 0) + amount;
+  }
+
+  return update;
 }
 
 function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -75,26 +91,38 @@ function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_recor
   };
 }
 
-function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_records"> {
+function mapAbnormalValues(
+  values: FormValues,
+  existingRecord: ExistingDailyRecord | null,
+): TablesUpdate<"daily_health_records"> {
   const eventType = typeof values.eventType === "string" ? values.eventType : "other";
   const repeated = values.repeatedToday === true;
-
-  return {
-    vomit_times: eventType === "vomiting" ? (repeated ? 2 : 1) : 0,
+  const existingVomitTimes = existingRecord?.vomit_times ?? 0;
+  const newAbnormalNote =
+    appendNotes(
+      `Event type: ${eventType}.`,
+      typeof values.severity === "string" ? `Severity: ${values.severity}.` : null,
+      repeated ? "Marked as repeated today." : null,
+      typeof values.notes === "string" ? values.notes : null,
+    ) || null;
+  const newNotes =
+    appendNotes(
+      typeof values.notes === "string" ? values.notes : null,
+      eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
+    ) || null;
+  const update: TablesUpdate<"daily_health_records"> = {
     abnormal_behavior: true,
-    abnormal_behavior_note:
-      appendNotes(
-        `Event type: ${eventType}.`,
-        typeof values.severity === "string" ? `Severity: ${values.severity}.` : null,
-        repeated ? "Marked as repeated today." : null,
-        typeof values.notes === "string" ? values.notes : null,
-      ) || null,
-    notes:
-      appendNotes(
-        typeof values.notes === "string" ? values.notes : null,
-        eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
-      ) || null,
+    abnormal_behavior_note: appendNotes(existingRecord?.abnormal_behavior_note, newAbnormalNote) || null,
+    notes: appendNotes(existingRecord?.notes, newNotes) || null,
   };
+
+  // ### vomiting events accumulate so alert rules see the real same-day count
+  if (eventType === "vomiting") {
+    const vomitIncrement = repeated && existingVomitTimes === 0 ? 2 : 1;
+    update.vomit_times = existingVomitTimes + vomitIncrement;
+  }
+
+  return update;
 }
 
 function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_records"> {
@@ -131,14 +159,15 @@ function mapWeightValues(values: FormValues): TablesUpdate<"daily_health_records
 function mapDailyRecordValues(
   category: Exclude<LogItemId, "vet_visit">,
   values: FormValues,
+  existingRecord: ExistingDailyRecord | null,
 ): TablesUpdate<"daily_health_records"> {
   switch (category) {
     case "food":
-      return mapFoodValues(values);
+      return mapFoodValues(values, existingRecord);
     case "activity":
       return mapActivityValues(values);
     case "abnormal_event":
-      return mapAbnormalValues(values);
+      return mapAbnormalValues(values, existingRecord);
     case "medication":
       return mapMedicationValues(values);
     case "weight":
@@ -225,7 +254,22 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
     };
   }
 
-  const baseUpdate = mapDailyRecordValues(category, values as FormValues);
+  const { data: existingRecord, error: existingRecordError } = await supabase
+    .from("daily_health_records")
+    .select("food_amount_grams, vomit_times, notes, abnormal_behavior_note")
+    .eq("cat_id", catId)
+    .eq("record_date", recordDate)
+    .maybeSingle();
+
+  if (existingRecordError) {
+    throw existingRecordError;
+  }
+
+  const baseUpdate = mapDailyRecordValues(
+    category,
+    values as FormValues,
+    (existingRecord as ExistingDailyRecord | null) ?? null,
+  );
   const upsertPayload: TablesInsert<"daily_health_records"> = {
     cat_id: catId,
     created_by: user.id,

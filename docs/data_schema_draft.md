@@ -465,6 +465,7 @@ Example shape:
 
 ## Edge Functions
 Implement the alert workflow in Edge Functions, not in client code and not in heavy SQL triggers.
+Privileged alert workers require `Authorization: Bearer <service_role_key>` so public anon JWTs cannot trigger service-role side effects.
 
 ### `check-alerts`
 Responsibilities:
@@ -487,6 +488,7 @@ Responsibilities:
 - invoke `check-alerts` for each due `cat_id`
 - mark the queue row as processed or store the latest worker error
 - skip rows whose `due_at` has moved forward because newer logging happened
+- reclaim processing claims older than five minutes so crashes do not permanently block future evaluations
 
 ### Logging debounce flow
 When a user saves one or more logs:
@@ -494,6 +496,7 @@ When a user saves one or more logs:
 - upsert the cat's `cat_alert_evaluation_queue` row
 - set `last_activity_at = now()`
 - set `due_at = now() + interval '30 seconds'`
+- clear any existing processing claim when new activity arrives
 - do not invoke `check-alerts` directly from the browser on each save
 
 This gives the app a unified review window while avoiding duplicate alert work during a burst of logging.
