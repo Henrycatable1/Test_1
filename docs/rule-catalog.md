@@ -42,6 +42,7 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
 - Edge cases:
   - ignore missing optional fields instead of treating them as abnormal
   - avoid duplicate alerts for the same cat, date, rule, and level
+  - deactivate a same-day alert when reevaluation shows that its rule no longer matches
   - derived rules such as weight-change or kitten-stagnation must use historical calculations rather than raw form fields
 - Example scenarios:
   - appetite score `2` for two consecutive days creates a `vet_recommended` alert
@@ -146,6 +147,7 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
 - Edge cases:
   - collaborators should only receive emails if they can view the cat and have opted in
   - per-user delivery state should be tracked separately from the alert row
+  - do not resend an emergency email after its delivery row has already reached a terminal status
 - Example scenarios:
   - a shared cat enters emergency status and both the owner and caretaker receive the urgent email
 - Related log item IDs: daily_health_record, vet_visit
