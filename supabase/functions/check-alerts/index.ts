@@ -476,7 +476,7 @@ function createVetVisitReminderEvent(
   records: DailyHealthRecordRow[],
   cat: CatRow,
   latestVetVisit: VetVisitRow | null,
-) {
+): EvaluatedEvent | null {
   const latestRecord = records[records.length - 1];
 
   if (!latestRecord) {
