@@ -476,7 +476,7 @@ function createVetVisitReminderEvent(
   records: DailyHealthRecordRow[],
   cat: CatRow,
   latestVetVisit: VetVisitRow | null,
-) {
+): EvaluatedEvent | null {
   const latestRecord = records[records.length - 1];
 
   if (!latestRecord) {
@@ -578,16 +578,37 @@ async function fetchRecipients(cat: CatRow) {
   }));
 }
 
-async function deactivatePreviousAlerts(catId: string, latestDate: string) {
-  const { error } = await admin
+// ### keep stored active alerts aligned with the latest complete rule evaluation
+async function deactivateStaleAlerts(catId: string, latestDate: string, activeRuleKeys: Set<string>) {
+  const { data, error } = await admin
     .from("alerts")
-    .update({ is_active: false })
+    .select("id, alert_date, rule_key")
     .eq("cat_id", catId)
-    .lt("alert_date", latestDate)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .lte("alert_date", latestDate);
 
   if (error) {
     throw error;
+  }
+
+  const staleAlertIds = (data ?? [])
+    .filter((alert) =>
+      alert.alert_date < latestDate
+      || (alert.alert_date === latestDate && !activeRuleKeys.has(alert.rule_key))
+    )
+    .map((alert) => alert.id);
+
+  if (staleAlertIds.length === 0) {
+    return;
+  }
+
+  const { error: updateError } = await admin
+    .from("alerts")
+    .update({ is_active: false })
+    .in("id", staleAlertIds);
+
+  if (updateError) {
+    throw updateError;
   }
 }
 
@@ -709,6 +730,24 @@ async function sendEmergencyEmails(
       continue;
     }
 
+    // ### only pending delivery rows are eligible so routine reevaluation cannot resend an emergency
+    const { data: pendingDelivery, error: deliveryError } = await admin
+      .from("alert_deliveries")
+      .select("id")
+      .eq("alert_id", preferredAlert.id)
+      .eq("user_id", recipient.user_id)
+      .eq("channel", "email")
+      .eq("delivery_status", "pending")
+      .maybeSingle();
+
+    if (deliveryError) {
+      throw deliveryError;
+    }
+
+    if (!pendingDelivery) {
+      continue;
+    }
+
     try {
       const subject =
         recipient.language_code === "zh-TW"
@@ -732,9 +771,7 @@ async function sendEmergencyEmails(
           delivery_status: "sent",
           delivered_at: new Date().toISOString(),
         })
-        .eq("alert_id", preferredAlert.id)
-        .eq("user_id", recipient.user_id)
-        .eq("channel", "email");
+        .eq("id", pendingDelivery.id);
     } catch (error) {
       await admin
         .from("alert_deliveries")
@@ -742,9 +779,7 @@ async function sendEmergencyEmails(
           delivery_status: "failed",
           error_message: error instanceof Error ? error.message : String(error),
         })
-        .eq("alert_id", preferredAlert.id)
-        .eq("user_id", recipient.user_id)
-        .eq("channel", "email");
+        .eq("id", pendingDelivery.id);
     }
   }
 }
@@ -817,7 +852,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
   if (events.length === 0) {
     if (!dryRun) {
-      await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+      await deactivateStaleAlerts(cat.id, latestRecord.record_date, new Set());
     }
 
     return {
@@ -836,8 +871,6 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     };
   }
 
-  await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
-
   for (const event of events) {
     const alertVariants = await upsertAlertVariants(cat.id, event, latestRecord.id, messageMap);
     await createAlertDeliveries(event, alertVariants, recipients);
@@ -846,6 +879,12 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
       await sendEmergencyEmails(alertVariants, recipients);
     }
   }
+
+  await deactivateStaleAlerts(
+    cat.id,
+    latestRecord.record_date,
+    new Set(events.map((event) => event.ruleKey)),
+  );
 
   return {
     catId: cat.id,
