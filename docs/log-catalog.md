@@ -67,6 +67,8 @@ This is the canonical catalog of supported log items for the product.
   - there can be only one record per cat per local calendar day
   - health fields are optional for MVP, but values must match documented enums or numeric ranges when present
   - `foodAmountGrams`, `suggestedFoodGrams`, and `weightKg` must be 0 or greater when present
+  - gram-based food logs must persist `suggestedFoodGrams` from the cat's weight, age, and logged or profile diet so `foodRatio` alerts can be evaluated
+  - recent gram-based food records inside the active food-alert window should be backfilled when suggested-food derivation is introduced
   - `appetiteScore` and `activityScore` must be between `1` and `4` when present
   - repeated same-day quick-log submissions must follow explicit daily aggregation behavior inside the same daily record
   - accumulating examples include event-derived counts such as `vomitTimes` and same-day food totals such as `foodAmountGrams`
