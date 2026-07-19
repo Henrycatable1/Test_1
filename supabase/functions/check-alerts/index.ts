@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { rulesConfig, type AlertLevel, type CombinationClause, type MatchRule, type SingleMetricCondition } from "../_shared/alert-rules.ts";
 import { sendEmail } from "../_shared/email.ts";
+import { getWeightChangePercent } from "../_shared/weight-change.ts";
 
 type CatRow = {
   id: string;
@@ -140,26 +141,6 @@ function getDirectMetricValue(record: DailyHealthRecordRow, metric: string) {
   }
 }
 
-function getWeightChangePercent(records: DailyHealthRecordRow[], recordIndex: number) {
-  const current = records[recordIndex];
-
-  if (!current?.weight_kg) {
-    return null;
-  }
-
-  for (let index = recordIndex - 1; index >= 0; index -= 1) {
-    const previousWeight = records[index]?.weight_kg;
-
-    if (!previousWeight || previousWeight <= 0) {
-      continue;
-    }
-
-    return Number((((current.weight_kg - previousWeight) / previousWeight) * 100).toFixed(2));
-  }
-
-  return null;
-}
-
 function matchesRuleValue(
   matchRule: MatchRule,
   value: string | number | boolean | null,
@@ -258,9 +239,10 @@ function getMetricValue(
   metric: string,
   records: DailyHealthRecordRow[],
   recordIndex: number,
+  initialWeightKg: number | null,
 ) {
   if (metric === "weight_change_percent") {
-    return getWeightChangePercent(records, recordIndex);
+    return getWeightChangePercent(records, recordIndex, initialWeightKg);
   }
 
   return getDirectMetricValue(records[recordIndex], metric);
@@ -273,7 +255,7 @@ function singleDayMetricMatch(
   recordIndex: number,
   cat: CatRow,
 ) {
-  const value = getMetricValue(metric, records, recordIndex);
+  const value = getMetricValue(metric, records, recordIndex, cat.initial_weight_kg);
   return matchesRuleValue(condition.match, value, records, recordIndex, cat);
 }
 
@@ -777,14 +759,42 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     throw recordError;
   }
 
-  const records = [...((recordRows ?? []) as DailyHealthRecordRow[])].reverse();
+  const recentRecords = [...((recordRows ?? []) as DailyHealthRecordRow[])].reverse();
 
-  if (records.length === 0) {
+  if (recentRecords.length === 0) {
     return {
       catId: cat.id,
       evaluated: false,
       reason: "No daily health records found.",
     };
+  }
+
+  let records = recentRecords;
+  const latestRecordHasWeight = (recentRecords.at(-1)?.weight_kg ?? 0) > 0;
+  const hasRecentWeightBaseline = recentRecords
+    .slice(0, -1)
+    .some((record) => (record.weight_kg ?? 0) > 0);
+
+  if (recordRows?.length === 45 && latestRecordHasWeight && !hasRecentWeightBaseline) {
+    // ### preserve infrequent weight history that falls outside the general 45-record alert window
+    const { data: baselineRows, error: baselineError } = await admin
+      .from("daily_health_records")
+      .select("*")
+      .eq("cat_id", cat.id)
+      .lt("record_date", recentRecords[0].record_date)
+      .gt("weight_kg", 0)
+      .order("record_date", { ascending: false })
+      .limit(1);
+
+    if (baselineError) {
+      throw baselineError;
+    }
+
+    const baselineRecord = ((baselineRows ?? [])[0] ?? null) as DailyHealthRecordRow | null;
+
+    if (baselineRecord) {
+      records = [baselineRecord, ...recentRecords];
+    }
   }
 
   const { data: visitRows, error: visitError } = await admin
