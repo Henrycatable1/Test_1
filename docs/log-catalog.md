@@ -71,6 +71,11 @@ This is the canonical catalog of supported log items for the product.
   - repeated same-day quick-log submissions must follow explicit daily aggregation behavior inside the same daily record
   - accumulating examples include event-derived counts such as `vomitTimes` and same-day food totals such as `foodAmountGrams`
   - single-daily-value examples include day-level summary fields such as `urineTimes`
+  - abnormal-event quick logs must write the structured daily fields that alert rules evaluate, not only free-text notes:
+    - `vomiting` writes `vomitTimes` (`1`, or `2` when marked repeated today)
+    - `diarrhea` writes `stoolCondition = watery`
+    - `appetite_loss` writes `appetiteScore = 1` when severity is `high`, otherwise `appetiteScore = 2`
+    - non-vomiting abnormal events must not reset an existing same-day `vomitTimes` value
 - Follow-up implications:
   - powers the overall health status
   - may trigger metric alerts, combination alerts, weight reminders, and annual vet reminders

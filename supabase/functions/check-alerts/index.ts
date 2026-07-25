@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { rulesConfig, type AlertLevel, type CombinationClause, type MatchRule, type SingleMetricCondition } from "../_shared/alert-rules.ts";
+import { filterPreferencesForCurrentAccess } from "../_shared/alert-recipients.ts";
 import { sendEmail } from "../_shared/email.ts";
 
 type CatRow = {
@@ -529,18 +530,40 @@ async function fetchRecipients(cat: CatRow) {
     throw ownerError;
   }
 
-  const { data: preferenceRows, error: preferenceError } = await admin
-    .from("cat_notification_preferences")
-    .select("user_id, email_important_alerts, email_daily_digest")
-    .eq("cat_id", cat.id);
+  const [{ data: preferenceRows, error: preferenceError }, { data: collaboratorRows, error: collaboratorError }] =
+    await Promise.all([
+      admin
+        .from("cat_notification_preferences")
+        .select("user_id, email_important_alerts, email_daily_digest")
+        .eq("cat_id", cat.id),
+      admin
+        .from("cat_collaborators")
+        .select("user_id")
+        .eq("cat_id", cat.id),
+    ]);
 
   if (preferenceError) {
     throw preferenceError;
   }
 
+  if (collaboratorError) {
+    throw collaboratorError;
+  }
+
+  // ### drop stale preference rows for users who no longer own or collaborate on the cat
+  const eligiblePreferences = filterPreferencesForCurrentAccess(
+    cat.owner_user_id,
+    (collaboratorRows ?? []).map((row) => row.user_id as string),
+    (preferenceRows ?? []).map((row) => ({
+      user_id: row.user_id as string,
+      email_important_alerts: Boolean(row.email_important_alerts),
+      email_daily_digest: Boolean(row.email_daily_digest),
+    })),
+  );
+
   const preferenceMap = new Map<string, { email_important_alerts: boolean; email_daily_digest: boolean }>();
 
-  for (const row of preferenceRows ?? []) {
+  for (const row of eligiblePreferences) {
     preferenceMap.set(row.user_id, {
       email_important_alerts: row.email_important_alerts,
       email_daily_digest: row.email_daily_digest,
