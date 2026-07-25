@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { mapAbnormalEventValues } from "@/features/logging/lib/abnormal-event-mapping";
 import type { LogItemId } from "@/types/domain";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
@@ -75,28 +76,6 @@ function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_recor
   };
 }
 
-function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_records"> {
-  const eventType = typeof values.eventType === "string" ? values.eventType : "other";
-  const repeated = values.repeatedToday === true;
-
-  return {
-    vomit_times: eventType === "vomiting" ? (repeated ? 2 : 1) : 0,
-    abnormal_behavior: true,
-    abnormal_behavior_note:
-      appendNotes(
-        `Event type: ${eventType}.`,
-        typeof values.severity === "string" ? `Severity: ${values.severity}.` : null,
-        repeated ? "Marked as repeated today." : null,
-        typeof values.notes === "string" ? values.notes : null,
-      ) || null,
-    notes:
-      appendNotes(
-        typeof values.notes === "string" ? values.notes : null,
-        eventType !== "vomiting" ? `Abnormal event recorded: ${eventType}.` : null,
-      ) || null,
-  };
-}
-
 function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_records"> {
   const status =
     values.status === "given"
@@ -138,7 +117,7 @@ function mapDailyRecordValues(
     case "activity":
       return mapActivityValues(values);
     case "abnormal_event":
-      return mapAbnormalValues(values);
+      return mapAbnormalEventValues(values);
     case "medication":
       return mapMedicationValues(values);
     case "weight":

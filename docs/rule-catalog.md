@@ -145,6 +145,7 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
 - Severity: medium for `vet_recommended`, high for `emergency`
 - Edge cases:
   - collaborators should only receive emails if they can view the cat and have opted in
+  - removed collaborators must not keep receiving emails from leftover `cat_notification_preferences` rows
   - per-user delivery state should be tracked separately from the alert row
 - Example scenarios:
   - a shared cat enters emergency status and both the owner and caretaker receive the urgent email
