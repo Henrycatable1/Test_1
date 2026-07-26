@@ -7,6 +7,7 @@ This file helps future agents understand the product, architecture direction, co
 - Supabase schema was redesigned around `daily_health_records` instead of the older generic `log_entries` model.
 - Canonical docs were aligned: `docs/data-model.md`, `docs/log-catalog.md`, `docs/rule-catalog.md`, `docs/data_schema_draft.md`, and `docs/how-to-add-items-and-rules.md`.
 - Live Supabase migrations were applied successfully.
+- Upgrade-path note: rewriting `20260408_initial_schema.sql` after it was applied on scaffold databases skips the CATable bootstrap. Reconciliation lives in `20260409000000_reconcile_scaffold_schema_rewrite.sql` (see `docs/data-model.md`).
 - Live tables now include:
   - `profiles`
   - `cats`

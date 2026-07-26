@@ -94,3 +94,10 @@ That means:
 Do not add a second parallel logging model unless there is a strong documented reason.
 
 For CATable, prefer extending the dedicated `daily_health_records` model and related alert tables over reintroducing a generic `log_entry` source of truth.
+
+## Migration Upgrade Safety
+Commit `7269f9f` rewrote the already-versioned bootstrap file `20260408_initial_schema.sql` from the scaffold prototype (`log_entries`, `cats.profile_id`) into the current CATable schema (`daily_health_records`, `cats.owner_user_id`, `app_private`).
+
+Databases that already recorded migration version `20260408` before that rewrite will skip the new bootstrap contents. `20260408235800_add_cat_health_context.sql` is intentionally a no-op, so later migrations that assume `app_private` and the CATable tables would fail and leave the database unusable for auth, logging, and alerts.
+
+Do not fix this by editing applied migration files again. Use the forward reconciliation migration `20260409000000_reconcile_scaffold_schema_rewrite.sql`, which runs after the no-op and before the first `app_private`-dependent migration, and is a no-op on databases that already have the current schema.
