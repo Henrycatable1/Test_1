@@ -500,10 +500,13 @@ This gives the app a unified review window while avoiding duplicate alert work d
 
 ### `send-alert-digests`
 Responsibilities:
-- run daily
+- run daily via `pg_cron` job `send-alert-digests` (`0 0 * * *` UTC)
+- invoked through `app_private.invoke_send_alert_digests()`, which POSTs to `/functions/v1/send-alert-digests` using Vault `project_url` + `anon_key` (same contract as the alert-evaluation worker on current main)
 - group non-emergency pending deliveries per user
 - send one email per user per day
 - mark `alert_deliveries` rows as sent, failed, or skipped
+
+Without this schedule, caution / `vet_recommended` / reminder deliveries stay `pending` forever because `check-alerts` only sends emergency email inline.
 
 ### Emergency alerts
 For emergency alerts:

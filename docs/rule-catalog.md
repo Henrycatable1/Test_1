@@ -158,13 +158,16 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
   - `cat_notification_preferences`
   - user language preference
 - Decision logic:
-  - group pending deliveries per user and send one daily digest email summarizing the relevant alerts
+  - `pg_cron` must invoke `send-alert-digests` once per day (00:00 UTC) via `app_private.invoke_send_alert_digests()`
+  - group pending non-emergency deliveries per user and send one daily digest email summarizing the relevant alerts
+  - mark each included `alert_deliveries` row sent, failed, or skipped
 - Output action shown to user:
   - a daily summary email rather than many separate messages
 - Severity: informational delivery behavior, not a health severity
 - Edge cases:
   - skip users who did not opt into daily digests
   - do not send one email per alert
+  - do not rely on manual or dashboard-only invocation; the schedule must live in migrations so every environment sends digests
 - Example scenarios:
-  - a user has two caution alerts and one vet reminder for the same day, so they receive a single digest email
+  - a user has two caution alerts and one vet reminder for the same day, so they receive a single digest email after the daily cron run
 - Related log item IDs: daily_health_record, vet_visit

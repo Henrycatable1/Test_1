@@ -78,6 +78,8 @@ The backend rule engine should:
 - look up localized feedback text by `(metric, condition_key, alert_level, language_code)`
 - insert `alerts`
 - create `alert_deliveries` for all intended recipients
+- send emergency email inline from `check-alerts`
+- send non-emergency digests from the daily `pg_cron` → `send-alert-digests` schedule
 
 ## Collaboration And Delivery
 Later, the model should support:
