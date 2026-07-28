@@ -34,6 +34,7 @@ This file helps future agents understand the product, architecture direction, co
   - caution alerts flowed into digest delivery for the owner only
   - emergency alerts sent immediate emails to both owner and collaborator when preferences allowed
   - disposable validation records were cleaned up after testing, so the project was returned to an empty data state
+- `profiles.email` must track verified `auth.users.email` on insert and email-change updates; alert/digest workers read the profile copy, not Auth directly.
 - Known MVP gap:
   - same-day quick-log submissions do not yet have one explicit and fully implemented daily-aggregation rule across all relevant fields
   - this affects more than abnormal events and can also apply to daily totals such as food intake
