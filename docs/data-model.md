@@ -28,6 +28,7 @@ The app UI may stay simple in MVP, but the database should not hard-code one-cat
 ## Auth And Ownership
 - Supabase Auth is the source of truth for registration, login, and passwords.
 - Public user data lives in `profiles`, keyed by `auth.users.id`.
+- `profiles.email` is a cached copy of `auth.users.email` for alert delivery and app reads. It must stay in sync on signup and whenever Auth verifies an email change (`email_change`); alert workers must not keep mailing a stale profile address after the user changes email.
 - `cats.owner_user_id` is the single source of truth for cat ownership.
 - Future collaborators are stored separately in `cat_collaborators`.
 

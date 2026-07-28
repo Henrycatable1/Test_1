@@ -115,7 +115,8 @@ Columns:
 
 Notes:
 - `email` is a cached application copy, not the auth source of truth.
-- A trigger can create a profile row automatically after signup.
+- A trigger creates a profile row automatically after signup and copies `auth.users.email`.
+- A second auth trigger must update `profiles.email` whenever `auth.users.email` changes (including verified `email_change` flows), so `check-alerts` and `send-alert-digests` keep using the current address.
 
 ### `cats`
 Purpose: cat profile plus primary owner.
