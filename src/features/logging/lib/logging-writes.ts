@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { mapActivityEnergyLevelToScore } from "@/features/logging/lib/activity-score-mapping";
 import type { LogItemId } from "@/types/domain";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
@@ -59,11 +60,8 @@ function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records">
 }
 
 function mapActivityValues(values: FormValues): TablesUpdate<"daily_health_records"> {
-  const activityScore =
-    values.energyLevel === "high" ? 4 : values.energyLevel === "medium" ? 3 : values.energyLevel === "low" ? 2 : null;
-
   return {
-    activity_score: activityScore,
+    activity_score: mapActivityEnergyLevelToScore(values.energyLevel),
     notes:
       appendNotes(
         typeof values.notes === "string" ? values.notes : null,

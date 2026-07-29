@@ -89,11 +89,13 @@ export const logFormConfig: Record<LogItemId, LogFormConfig> = {
         id: "energyLevel",
         label: "Energy level",
         type: "select",
-        helperText: "This is used for trends and missing-log reminders.",
+        helperText:
+          "Maps to the 1-4 activity score used by lethargy alerts. Choose barely moving when the cat is nearly immobile.",
         options: [
-          { value: "low", label: "Low" },
-          { value: "medium", label: "Medium" },
-          { value: "high", label: "High" },
+          { value: "medium", label: "Medium / active" },
+          { value: "high", label: "High / very active" },
+          { value: "low", label: "Low / slightly lethargic" },
+          { value: "very_low", label: "Barely moving" },
         ],
       },
       {
