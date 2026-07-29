@@ -71,6 +71,12 @@ This is the canonical catalog of supported log items for the product.
   - repeated same-day quick-log submissions must follow explicit daily aggregation behavior inside the same daily record
   - accumulating examples include event-derived counts such as `vomitTimes` and same-day food totals such as `foodAmountGrams`
   - single-daily-value examples include day-level summary fields such as `urineTimes`
+  - activity quick logs must map energy level choices onto the full 1-4 `activityScore` scale that alert rules evaluate:
+    - `high` → `activityScore = 4` (very active)
+    - `medium` → `activityScore = 3` (active)
+    - `low` → `activityScore = 2` (slightly lethargic)
+    - `very_low` → `activityScore = 1` (lethargic / barely moves)
+  - omitting `very_low` / score `1` would make configured day-1 vet-recommended and day-2 emergency lethargy alerts unreachable from the UI
 - Follow-up implications:
   - powers the overall health status
   - may trigger metric alerts, combination alerts, weight reminders, and annual vet reminders
