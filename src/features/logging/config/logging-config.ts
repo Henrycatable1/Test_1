@@ -59,11 +59,13 @@ export const logFormConfig: Record<LogItemId, LogFormConfig> = {
         id: "appetite",
         label: "Appetite",
         type: "select",
-        helperText: "Helps the dashboard spot appetite changes later.",
+        helperText:
+          "Maps to the 1-4 appetite score used by under-eating alerts. Choose refuses food when the cat will not eat or take treats.",
         options: [
-          { value: "normal", label: "Normal" },
-          { value: "reduced", label: "Reduced" },
-          { value: "high", label: "High" },
+          { value: "high", label: "High / ate all food" },
+          { value: "normal", label: "Normal / ate most food" },
+          { value: "reduced", label: "Reduced / ate less than half" },
+          { value: "none", label: "Refuses food / treats" },
         ],
       },
       {

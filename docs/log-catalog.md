@@ -71,6 +71,12 @@ This is the canonical catalog of supported log items for the product.
   - repeated same-day quick-log submissions must follow explicit daily aggregation behavior inside the same daily record
   - accumulating examples include event-derived counts such as `vomitTimes` and same-day food totals such as `foodAmountGrams`
   - single-daily-value examples include day-level summary fields such as `urineTimes`
+  - food quick logs must map appetite choices onto the full 1-4 `appetiteScore` scale that alert rules evaluate:
+    - `high` → `appetiteScore = 4` (ate all food)
+    - `normal` → `appetiteScore = 3` (ate most food)
+    - `reduced` → `appetiteScore = 2` (ate less than half)
+    - `none` → `appetiteScore = 1` (refuses food / treats)
+  - omitting `none` / score `1` would make the configured same-day appetite emergency alert unreachable from the primary food write path
 - Follow-up implications:
   - powers the overall health status
   - may trigger metric alerts, combination alerts, weight reminders, and annual vet reminders
