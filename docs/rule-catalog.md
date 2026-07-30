@@ -43,8 +43,10 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
   - ignore missing optional fields instead of treating them as abnormal
   - avoid duplicate alerts for the same cat, date, rule, and level
   - derived rules such as weight-change or kitten-stagnation must use historical calculations rather than raw form fields
+  - appetite score `1` (refuses food / treats) must remain reachable from food quick logs so `appetite_score_value_1_day1` can fire
 - Example scenarios:
   - appetite score `2` for two consecutive days creates a `vet_recommended` alert
+  - appetite score `1` on a single day creates an `emergency` alert
   - resting breath rate `greater_than_40` creates an emergency alert the same day
 - Related log item IDs: daily_health_record
 

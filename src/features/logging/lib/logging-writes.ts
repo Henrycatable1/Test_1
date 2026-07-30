@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { mapFoodAppetiteToScore } from "@/features/logging/lib/appetite-score-mapping";
 import type { LogItemId } from "@/types/domain";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
@@ -37,8 +38,6 @@ function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records">
   const foodType = typeof values.foodType === "string" && ["dry", "wet", "both"].includes(values.foodType)
     ? (values.foodType as "dry" | "wet" | "both")
     : null;
-  const appetite =
-    values.appetite === "high" ? 4 : values.appetite === "reduced" ? 2 : values.appetite === "normal" ? 3 : null;
   const amount = toNumber(values.amount);
   const noteSegments = [
     typeof values.notes === "string" ? values.notes : null,
@@ -53,7 +52,7 @@ function mapFoodValues(values: FormValues): TablesUpdate<"daily_health_records">
   return {
     food_type: foodType,
     food_amount_grams: typeof values.unit === "string" && values.unit === "g" ? amount : null,
-    appetite_score: appetite,
+    appetite_score: mapFoodAppetiteToScore(values.appetite),
     notes: appendNotes(...noteSegments) || null,
   };
 }
