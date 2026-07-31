@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "sync:alert-rules": "node scripts/sync-alert-rules.mjs"
   },
   "dependencies": {
