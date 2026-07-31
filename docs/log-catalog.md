@@ -71,6 +71,11 @@ This is the canonical catalog of supported log items for the product.
   - repeated same-day quick-log submissions must follow explicit daily aggregation behavior inside the same daily record
   - accumulating examples include event-derived counts such as `vomitTimes` and same-day food totals such as `foodAmountGrams`
   - single-daily-value examples include day-level summary fields such as `urineTimes`
+  - medication quick logs must map status choices onto stored `medicationTaken` values without treating a late dose as a miss:
+    - `given` → `medicationTaken = taken`
+    - `delayed` → `medicationTaken = taken` (dose was administered late; keep the delay detail in notes)
+    - `missed` → `medicationTaken = missed`
+  - mapping `delayed` to `missed` would incorrectly escalate `medication_taken_missed_day3` emergency alerts after late-but-given doses
 - Follow-up implications:
   - powers the overall health status
   - may trigger metric alerts, combination alerts, weight reminders, and annual vet reminders

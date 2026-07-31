@@ -197,11 +197,12 @@ export const logFormConfig: Record<LogItemId, LogFormConfig> = {
         id: "status",
         label: "Status",
         type: "select",
-        helperText: "Supports reminder logic and adherence reporting.",
+        helperText:
+          "Given and delayed both count as taken for alerts. Use missed only when the dose was not administered.",
         options: [
           { value: "given", label: "Given" },
+          { value: "delayed", label: "Delayed (still given)" },
           { value: "missed", label: "Missed" },
-          { value: "delayed", label: "Delayed" },
         ],
       },
       {

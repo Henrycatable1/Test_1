@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { mapMedicationStatusToTaken } from "@/features/logging/lib/medication-status-mapping";
 import type { LogItemId } from "@/types/domain";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
@@ -98,15 +99,9 @@ function mapAbnormalValues(values: FormValues): TablesUpdate<"daily_health_recor
 }
 
 function mapMedicationValues(values: FormValues): TablesUpdate<"daily_health_records"> {
-  const status =
-    values.status === "given"
-      ? "taken"
-      : values.status === "missed" || values.status === "delayed"
-        ? "missed"
-        : null;
-
   return {
-    medication_taken: status,
+    // ### delayed doses are still administered; only true misses escalate medication alerts
+    medication_taken: mapMedicationStatusToTaken(values.status),
     notes:
       appendNotes(
         typeof values.notes === "string" ? values.notes : null,
