@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { resolveSignedInHomePath } from "@/features/onboarding/lib/onboarding-cat";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type EmailSignInFormProps = {
@@ -133,7 +134,7 @@ export function EmailSignInForm({
     setPasswordError(null);
     setPasswordMessage(null);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email: passwordEmail,
       password,
     });
@@ -144,10 +145,36 @@ export function EmailSignInForm({
       return;
     }
 
+    const signedInUserId = signInData.user?.id;
+
+    if (!signedInUserId) {
+      setPasswordError("Password sign-in succeeded but no user session was returned.");
+      setIsPasswordSubmitting(false);
+      return;
+    }
+
+    const { data: existingCats, error: catLookupError } = await supabase
+      .from("cats")
+      .select("id")
+      .eq("owner_user_id", signedInUserId)
+      .limit(1);
+
+    if (catLookupError) {
+      setPasswordError(catLookupError.message);
+      setIsPasswordSubmitting(false);
+      return;
+    }
+
+    const nextPath = resolveSignedInHomePath(Boolean(existingCats?.[0]?.id));
+
     // ### keep a localhost fallback available for MVP verification when the Supabase email provider is down
-    setPasswordMessage("Password sign-in succeeded. Redirecting to onboarding.");
+    setPasswordMessage(
+      nextPath === "/dashboard"
+        ? "Password sign-in succeeded. Redirecting to the dashboard."
+        : "Password sign-in succeeded. Redirecting to onboarding.",
+    );
     setIsPasswordSubmitting(false);
-    router.push("/onboarding");
+    router.push(nextPath);
     router.refresh();
   }
 

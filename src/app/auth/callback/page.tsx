@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 
+import { resolveSignedInHomePath } from "@/features/onboarding/lib/onboarding-cat";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const supportedOtpTypes = new Set<EmailOtpType>([
@@ -21,6 +22,32 @@ function toSafeNextPath(input: string | null) {
   }
 
   return input;
+}
+
+async function resolvePostAuthPath(
+  supabase: NonNullable<ReturnType<typeof getSupabaseBrowserClient>>,
+  requestedNextPath: string,
+) {
+  // ### hash-token callbacks also need to skip onboarding when a cat already exists
+  if (requestedNextPath !== "/onboarding") {
+    return requestedNextPath;
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return requestedNextPath;
+  }
+
+  const { data: existingCats } = await supabase
+    .from("cats")
+    .select("id")
+    .eq("owner_user_id", user.id)
+    .limit(1);
+
+  return resolveSignedInHomePath(Boolean(existingCats?.[0]?.id));
 }
 
 export default function AuthCallbackPage() {
@@ -91,11 +118,13 @@ export default function AuthCallbackPage() {
           throw new Error("session_missing");
         }
 
+        const resolvedNextPath = await resolvePostAuthPath(supabase, nextPath);
+
         if (isMounted) {
           setStatusMessage("Session ready. Redirecting...");
         }
 
-        router.replace(nextPath);
+        router.replace(resolvedNextPath);
       } catch (error) {
         const reason = error instanceof Error ? error.message : "invalid_or_expired";
         router.replace(`/signin?auth_error=1&reason=${encodeURIComponent(reason)}`);

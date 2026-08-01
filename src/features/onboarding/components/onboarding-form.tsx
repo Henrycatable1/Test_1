@@ -1,24 +1,82 @@
 "use client";
 
+import {
+  buildOnboardingInsertPayload,
+  buildOnboardingUpdatePayload,
+  emptyOnboardingValues,
+  mapCatRowToOnboardingValues,
+  type OnboardingFormValues,
+} from "@/features/onboarding/lib/onboarding-cat";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-
-const defaultValues = {
-  name: "",
-  ageYears: "4",
-  sex: "female",
-  breed: "",
-  weightKg: "4.3",
-  personality: "",
-};
+import { useEffect, useState } from "react";
 
 export function OnboardingForm() {
   const router = useRouter();
-  const [values, setValues] = useState(defaultValues);
+  const [values, setValues] = useState<OnboardingFormValues>(emptyOnboardingValues);
+  const [existingCatId, setExistingCatId] = useState<string | null>(null);
+  const [isLoadingExisting, setIsLoadingExisting] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+
+    if (!supabase) {
+      setIsLoadingExisting(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    void (async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (userError || !user) {
+        setIsLoadingExisting(false);
+        return;
+      }
+
+      const { data: existingCats, error: catLookupError } = await supabase
+        .from("cats")
+        .select("id, name, age_months, gender, breed, initial_weight_kg, personality")
+        .eq("owner_user_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1);
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (catLookupError) {
+        setError(catLookupError.message);
+        setIsLoadingExisting(false);
+        return;
+      }
+
+      const existingCat = existingCats?.[0];
+
+      // ### re-entry must edit the owned cat instead of replacing it with blank form defaults
+      if (existingCat) {
+        setExistingCatId(existingCat.id);
+        setValues(mapCatRowToOnboardingValues(existingCat));
+      }
+
+      setIsLoadingExisting(false);
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,31 +109,18 @@ export function OnboardingForm() {
       return;
     }
 
-    const payload = {
-      owner_user_id: user.id,
-      name: values.name.trim(),
-      age_months: Math.max(0, Math.round(Number(values.ageYears) * 12)),
-      gender: values.sex as "male" | "female" | "neutered_male" | "neutered_female",
-      breed: values.breed.trim() || null,
-      initial_weight_kg: Number(values.weightKg),
-      personality: values.personality.trim() || null,
-      underlying_health_conditions: [] as string[],
-    };
+    let payload;
 
-    const { data: existingCats, error: catLookupError } = await supabase
-      .from("cats")
-      .select("id")
-      .eq("owner_user_id", user.id)
-      .order("created_at", { ascending: true })
-      .limit(1);
-
-    if (catLookupError) {
-      setError(catLookupError.message);
+    try {
+      payload = existingCatId
+        ? buildOnboardingUpdatePayload(values)
+        : buildOnboardingInsertPayload(user.id, values);
+    } catch (payloadError) {
+      setError(payloadError instanceof Error ? payloadError.message : "Invalid cat profile values.");
       setIsSaving(false);
       return;
     }
 
-    const existingCatId = existingCats?.[0]?.id;
     const mutation = existingCatId
       ? supabase.from("cats").update(payload).eq("id", existingCatId)
       : supabase.from("cats").insert(payload);
@@ -91,6 +136,17 @@ export function OnboardingForm() {
     setIsSaving(false);
     router.push("/dashboard");
     router.refresh();
+  }
+
+  if (isLoadingExisting) {
+    return (
+      <section className="rounded-[24px] border-4 border-neutral-900 bg-white/75 p-4 text-sm font-medium leading-6 text-neutral-800 shadow-[5px_5px_0_0_#171717]">
+        <p className="font-black uppercase tracking-[0.16em] text-neutral-700">
+          Loading cat profile
+        </p>
+        <p className="mt-2">Checking whether this account already has a cat to edit.</p>
+      </section>
+    );
   }
 
   return (
@@ -122,7 +178,7 @@ export function OnboardingForm() {
             className="w-full rounded-[20px] border-4 border-neutral-900 bg-white px-4 py-3 font-medium text-neutral-900"
             type="number"
             min="0"
-            step="1"
+            step="0.1"
             value={values.ageYears}
             onChange={(event) =>
               setValues((current) => ({ ...current, ageYears: event.target.value }))
@@ -139,7 +195,10 @@ export function OnboardingForm() {
             className="w-full rounded-[20px] border-4 border-neutral-900 bg-white px-4 py-3 font-medium text-neutral-900"
             value={values.sex}
             onChange={(event) =>
-              setValues((current) => ({ ...current, sex: event.target.value }))
+              setValues((current) => ({
+                ...current,
+                sex: event.target.value as OnboardingFormValues["sex"],
+              }))
             }
           >
             <option value="female">Female</option>
@@ -205,14 +264,19 @@ export function OnboardingForm() {
           Live cat profile
         </p>
         <p className="mt-2">
-          This onboarding flow writes directly to the real `cats` table for the
-          signed-in owner.
+          {existingCatId
+            ? "This account already has a cat. Saving updates that profile and keeps existing health conditions."
+            : "This onboarding flow writes directly to the real `cats` table for the signed-in owner."}
         </p>
       </div>
 
       <div className="flex flex-wrap gap-4">
         <button className="cta-button" disabled={isSaving} type="submit">
-          {isSaving ? "Saving profile..." : "Save cat profile"}
+          {isSaving
+            ? "Saving profile..."
+            : existingCatId
+              ? "Update cat profile"
+              : "Save cat profile"}
         </button>
         {saved ? (
           <p className="rounded-full border-4 border-neutral-900 bg-emerald-200 px-4 py-2 text-sm font-black text-neutral-900 shadow-[4px_4px_0_0_#171717]">
