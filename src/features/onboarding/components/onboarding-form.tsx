@@ -22,15 +22,16 @@ export function OnboardingForm() {
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
-
-    if (!supabase) {
-      setIsLoadingExisting(false);
-      return;
-    }
-
     let isMounted = true;
 
     void (async () => {
+      if (!supabase) {
+        if (isMounted) {
+          setIsLoadingExisting(false);
+        }
+        return;
+      }
+
       const {
         data: { user },
         error: userError,
@@ -109,22 +110,25 @@ export function OnboardingForm() {
       return;
     }
 
-    let payload;
+    let saveError;
 
     try {
-      payload = existingCatId
-        ? buildOnboardingUpdatePayload(values)
-        : buildOnboardingInsertPayload(user.id, values);
+      if (existingCatId) {
+        // ### updates intentionally omit underlying_health_conditions to preserve later profile data
+        ({ error: saveError } = await supabase
+          .from("cats")
+          .update(buildOnboardingUpdatePayload(values))
+          .eq("id", existingCatId));
+      } else {
+        ({ error: saveError } = await supabase
+          .from("cats")
+          .insert(buildOnboardingInsertPayload(user.id, values)));
+      }
     } catch (payloadError) {
       setError(payloadError instanceof Error ? payloadError.message : "Invalid cat profile values.");
       setIsSaving(false);
       return;
     }
-
-    const mutation = existingCatId
-      ? supabase.from("cats").update(payload).eq("id", existingCatId)
-      : supabase.from("cats").insert(payload);
-    const { error: saveError } = await mutation;
 
     if (saveError) {
       setError(saveError.message);
