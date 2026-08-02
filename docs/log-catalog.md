@@ -64,6 +64,7 @@ This is the canonical catalog of supported log items for the product.
   - `medicationTaken`: `taken`, `missed`, `not_required`
 - Validation rules:
   - `recordDate` is required
+  - `recordDate` must be today or earlier on the owner's local calendar; future-dated quick logs are rejected
   - there can be only one record per cat per local calendar day
   - health fields are optional for MVP, but values must match documented enums or numeric ranges when present
   - `foodAmountGrams`, `suggestedFoodGrams`, and `weightKg` must be 0 or greater when present
@@ -71,6 +72,7 @@ This is the canonical catalog of supported log items for the product.
   - repeated same-day quick-log submissions must follow explicit daily aggregation behavior inside the same daily record
   - accumulating examples include event-derived counts such as `vomitTimes` and same-day food totals such as `foodAmountGrams`
   - single-daily-value examples include day-level summary fields such as `urineTimes`
+  - a future `recordDate` must never become the latest tip for alert evaluation, because tip-date cleanup deactivates earlier active alerts
 - Follow-up implications:
   - powers the overall health status
   - may trigger metric alerts, combination alerts, weight reminders, and annual vet reminders
@@ -102,6 +104,7 @@ This is the canonical catalog of supported log items for the product.
   - `hasPrescription`: boolean
 - Validation rules:
   - `visitDate` is required
+  - `visitDate` must be today or earlier on the owner's local calendar; future visit dates are rejected so annual reminders are not suppressed
   - `reason` is required
   - `notes` is optional
 - Follow-up implications:

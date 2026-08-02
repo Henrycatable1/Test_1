@@ -145,6 +145,8 @@ export function LogEntryForm({ category }: LogEntryFormProps) {
                 <input
                   className="w-full rounded-[20px] border-4 border-neutral-900 bg-white px-4 py-3 font-medium text-neutral-900"
                   type={field.type}
+                  // ### keep datetime pickers from offering future tip dates that clear active alerts
+                  max={field.type === "datetime-local" ? getDefaultTimestamp() : undefined}
                   value={String(values[field.id] ?? "")}
                   onChange={(event) =>
                     setValues((current) => ({
