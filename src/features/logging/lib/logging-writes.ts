@@ -1,21 +1,12 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  assertRecordDateNotInFuture,
+  getLocalDateParts,
+} from "@/features/logging/lib/record-date";
 import type { LogItemId } from "@/types/domain";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
 type FormValues = Record<string, string | boolean>;
-
-function getRecordDateParts(occurredAt: string) {
-  const date = new Date(occurredAt);
-  const offset = date.getTimezoneOffset() * 60_000;
-  const localDate = new Date(date.getTime() - offset);
-  const isoDate = localDate.toISOString().slice(0, 10);
-  const isoTime = localDate.toISOString().slice(11, 16);
-
-  return {
-    recordDate: isoDate,
-    time: isoTime,
-  };
-}
 
 function toNumber(value: string | boolean | undefined) {
   if (typeof value !== "string") {
@@ -190,7 +181,9 @@ export async function saveLogEntry(category: LogItemId, values: FormValues) {
   }
 
   const occurredAt = typeof values.occurredAt === "string" ? values.occurredAt : new Date().toISOString();
-  const { recordDate, time } = getRecordDateParts(occurredAt);
+  const { recordDate, time } = getLocalDateParts(occurredAt);
+  // ### reject future tip dates so alert cleanup cannot deactivate today's active alerts
+  assertRecordDateNotInFuture(recordDate);
 
   if (category === "vet_visit") {
     const vetVisitPayload: TablesInsert<"vet_visits"> = {

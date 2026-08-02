@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { rulesConfig, type AlertLevel, type CombinationClause, type MatchRule, type SingleMetricCondition } from "../_shared/alert-rules.ts";
 import { sendEmail } from "../_shared/email.ts";
+import { filterEvaluableRecords } from "../_shared/evaluable-records.ts";
 
 type CatRow = {
   id: string;
@@ -777,7 +778,12 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     throw recordError;
   }
 
-  const records = [...((recordRows ?? []) as DailyHealthRecordRow[])].reverse();
+  const utcToday = new Date().toISOString().slice(0, 10);
+  // ### drop far-future tip records so deactivatePreviousAlerts cannot clear current-day emergencies
+  const records = filterEvaluableRecords(
+    [...((recordRows ?? []) as DailyHealthRecordRow[])].reverse(),
+    utcToday,
+  );
 
   if (records.length === 0) {
     return {

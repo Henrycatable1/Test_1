@@ -43,9 +43,11 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
   - ignore missing optional fields instead of treating them as abnormal
   - avoid duplicate alerts for the same cat, date, rule, and level
   - derived rules such as weight-change or kitten-stagnation must use historical calculations rather than raw form fields
+  - evaluate only non-future daily records as the tip date; a future tip must not deactivate earlier active alerts (including same-day emergencies)
 - Example scenarios:
   - appetite score `2` for two consecutive days creates a `vet_recommended` alert
   - resting breath rate `greater_than_40` creates an emergency alert the same day
+  - logging food for a future date is rejected and must not clear today's active emergency alerts
 - Related log item IDs: daily_health_record
 
 ### Rule: combination_alert_rules
