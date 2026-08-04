@@ -10,6 +10,10 @@ import type {
 } from "@/types/domain";
 import type { Enums, Tables } from "@/types/supabase";
 
+import { resolveProfileLanguageCode } from "./profile-language";
+
+export { resolveProfileLanguageCode } from "./profile-language";
+
 const alertRank: Record<Enums<"alert_level_type">, number> = {
   emergency: 3,
   vet_recommended: 2,
@@ -37,11 +41,6 @@ function startOfDay(date: Date) {
 
 export function getAgeYears(ageMonths: number) {
   return Number((ageMonths / 12).toFixed(1));
-}
-
-// ### keep dashboard/profile copy aligned with the profile language while alerts store en + zh-TW variants
-export function resolveProfileLanguageCode(languageCode: string | null | undefined): "en" | "zh-TW" {
-  return languageCode === "en" || languageCode === "zh-TW" ? languageCode : "zh-TW";
 }
 
 export function mapCatRowToProfile(cat: Tables<"cats">): CatProfile {
