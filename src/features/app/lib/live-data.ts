@@ -39,6 +39,11 @@ export function getAgeYears(ageMonths: number) {
   return Number((ageMonths / 12).toFixed(1));
 }
 
+// ### keep dashboard/profile copy aligned with the profile language while alerts store en + zh-TW variants
+export function resolveProfileLanguageCode(languageCode: string | null | undefined): "en" | "zh-TW" {
+  return languageCode === "en" || languageCode === "zh-TW" ? languageCode : "zh-TW";
+}
+
 export function mapCatRowToProfile(cat: Tables<"cats">): CatProfile {
   return {
     id: cat.id,
@@ -272,6 +277,7 @@ export async function fetchActiveCatBundle(): Promise<ActiveCatBundle | null> {
   }
 
   const cat = cats?.[0] ?? null;
+  const messageLanguageCode = resolveProfileLanguageCode(profile?.language_code);
 
   if (!cat) {
     return {
@@ -308,11 +314,13 @@ export async function fetchActiveCatBundle(): Promise<ActiveCatBundle | null> {
       .select("*")
       .eq("cat_id", cat.id)
       .eq("is_active", true)
+      .eq("message_language_code", messageLanguageCode)
       .order("alert_date", { ascending: false }),
     supabase
       .from("feedback_messages")
       .select("*")
-      .eq("is_active", true),
+      .eq("is_active", true)
+      .eq("language_code", messageLanguageCode),
     supabase
       .from("cat_alert_evaluation_queue")
       .select("due_at, last_activity_at, last_error")

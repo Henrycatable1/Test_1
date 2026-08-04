@@ -42,6 +42,7 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
 - Edge cases:
   - ignore missing optional fields instead of treating them as abnormal
   - avoid duplicate alerts for the same cat, date, rule, and level
+  - backend may persist one active alert row per language (`en` and `zh-TW`); dashboard and profile follow-ups must filter by `profiles.language_code` via `alerts.message_language_code` so each rule appears once
   - derived rules such as weight-change or kitten-stagnation must use historical calculations rather than raw form fields
 - Example scenarios:
   - appetite score `2` for two consecutive days creates a `vet_recommended` alert
