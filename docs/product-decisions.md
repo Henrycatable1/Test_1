@@ -35,6 +35,11 @@ This file records important product and technical decisions so future contributo
 - Why: this keeps logging easy for the user while making the daily state, summaries, alerts, and reports easier to read and reason about during the MVP stage
 - Revisit when: the product needs richer repeated-event timelines that are awkward to represent inside one daily record
 
+### Decision: English is the MVP default profile language
+- Choice: new `profiles.language_code` values default to `en`, and alert/digest delivery falls back to English when language is missing
+- Why: the MVP 1.0 UI and onboarding copy are English-only, with no language picker yet; defaulting to `zh-TW` sent emergency and digest emails in Traditional Chinese that English users could not reliably understand
+- Revisit when: the product ships an explicit language setting and intentional bilingual onboarding
+
 ### Decision: rules-based feedback first
 - Choice: use explicit product rules for reminders, feedback, and warnings
 - Why: easier to explain, test, and review than LLM-generated behavior

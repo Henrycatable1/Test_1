@@ -41,6 +41,11 @@ This file helps future agents understand the product, architecture direction, co
   - current confirmed examples are: `vomit_times` should accumulate, food totals should accumulate, and `urine_times` should remain one daily value for MVP 1.0
   - this can prevent expected cat-state changes or produce inaccurate summaries when the same item is logged multiple times separately in one day
   - see `docs/repeated-event-logging-gap.md` before changing same-day quick-log write behavior
+- Profile language for MVP 1.0:
+  - `profiles.language_code` defaults to `en`
+  - signup profile creation should set English explicitly
+  - alert/digest workers fall back to English when language is missing
+  - Traditional Chinese remains supported in `feedback_messages`, but is not the silent default while the UI is English-only
 - `.env.example` now includes:
   - `SUPABASE_SERVICE_ROLE_KEY`
   - `RESEND_API_KEY`
