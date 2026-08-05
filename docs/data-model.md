@@ -28,6 +28,8 @@ The app UI may stay simple in MVP, but the database should not hard-code one-cat
 ## Auth And Ownership
 - Supabase Auth is the source of truth for registration, login, and passwords.
 - Public user data lives in `profiles`, keyed by `auth.users.id`.
+- `profiles.language_code` defaults to `en` for MVP 1.0 because the product UI is English-only and there is no language picker yet.
+- Alert evaluation stores bilingual alert rows, but email delivery and missing-language fallbacks use the recipient profile language and fall back to English.
 - `cats.owner_user_id` is the single source of truth for cat ownership.
 - Future collaborators are stored separately in `cat_collaborators`.
 

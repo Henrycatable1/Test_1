@@ -161,7 +161,8 @@ serve(async () => {
       }
 
       try {
-        const email = buildDigestEmail(profile.language_code ?? "zh-TW", digestAlerts);
+        // ### English is the MVP default when profile language is missing
+        const email = buildDigestEmail(profile.language_code ?? "en", digestAlerts);
 
         await sendEmail({
           to: profile.email,

@@ -572,7 +572,8 @@ async function fetchRecipients(cat: CatRow) {
   return (profiles ?? []).map((profile) => ({
     user_id: profile.id,
     email: profile.email,
-    language_code: (profile.language_code ?? "zh-TW") as "en" | "zh-TW",
+    // ### English is the MVP default when profile language is missing
+    language_code: (profile.language_code ?? "en") as "en" | "zh-TW",
     email_important_alerts: preferenceMap.get(profile.id)?.email_important_alerts ?? false,
     email_daily_digest: preferenceMap.get(profile.id)?.email_daily_digest ?? false,
   }));

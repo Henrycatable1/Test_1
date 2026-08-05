@@ -104,7 +104,7 @@ Columns:
 - `id uuid primary key references auth.users(id) on delete cascade`
 - `email text unique`
 - `display_name text`
-- `language_code text not null default 'zh-TW'`
+- `language_code text not null default 'en'`
 - `age integer`
 - `job_status text`
 - `last_vet_visit_self date`
@@ -116,6 +116,7 @@ Columns:
 Notes:
 - `email` is a cached application copy, not the auth source of truth.
 - A trigger can create a profile row automatically after signup.
+- MVP 1.0 defaults `language_code` to `en` because the shipped UI is English-only; keep `zh-TW` as an allowed value for later bilingual settings.
 
 ### `cats`
 Purpose: cat profile plus primary owner.

@@ -159,12 +159,14 @@ This is the canonical catalog of dashboard feedback rules, reminder rules, and w
   - user language preference
 - Decision logic:
   - group pending deliveries per user and send one daily digest email summarizing the relevant alerts
+  - choose digest copy from `profiles.language_code`, falling back to English when the preference is missing
 - Output action shown to user:
   - a daily summary email rather than many separate messages
 - Severity: informational delivery behavior, not a health severity
 - Edge cases:
   - skip users who did not opt into daily digests
   - do not send one email per alert
+  - English is the MVP default profile language until a language picker ships
 - Example scenarios:
   - a user has two caution alerts and one vet reminder for the same day, so they receive a single digest email
 - Related log item IDs: daily_health_record, vet_visit
