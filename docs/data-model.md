@@ -76,8 +76,10 @@ The alert system is split into two layers:
 The backend rule engine should:
 - evaluate daily records against the config
 - look up localized feedback text by `(metric, condition_key, alert_level, language_code)`
-- insert `alerts`
+- insert `alerts` (including language variants needed for multi-recipient delivery)
 - create `alert_deliveries` for all intended recipients
+
+Dashboard and profile surfaces should load only the active alert variant that matches `profiles.language_code` (`alerts.message_language_code`), so bilingual storage does not double follow-up counts or show mixed-language copies.
 
 ## Collaboration And Delivery
 Later, the model should support:

@@ -241,6 +241,7 @@ Columns:
 Notes:
 - Users can read alerts they are allowed to see, but only backend code should insert them.
 - Current cat health status can be derived from the highest active alert level for that cat.
+- `check-alerts` upserts both `en` and `zh-TW` active rows for each rule so recipients can receive their preferred language. Client loads for dashboard/profile must filter `is_active = true` and `message_language_code = profiles.language_code`.
 
 ### `alert_deliveries`
 Purpose: per-user delivery tracking for digests and emergency emails.

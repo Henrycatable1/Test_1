@@ -10,6 +10,10 @@ import type {
 } from "@/types/domain";
 import type { Enums, Tables } from "@/types/supabase";
 
+import { resolveProfileLanguageCode } from "./profile-language";
+
+export { resolveProfileLanguageCode } from "./profile-language";
+
 const alertRank: Record<Enums<"alert_level_type">, number> = {
   emergency: 3,
   vet_recommended: 2,
@@ -272,6 +276,7 @@ export async function fetchActiveCatBundle(): Promise<ActiveCatBundle | null> {
   }
 
   const cat = cats?.[0] ?? null;
+  const messageLanguageCode = resolveProfileLanguageCode(profile?.language_code);
 
   if (!cat) {
     return {
@@ -308,11 +313,13 @@ export async function fetchActiveCatBundle(): Promise<ActiveCatBundle | null> {
       .select("*")
       .eq("cat_id", cat.id)
       .eq("is_active", true)
+      .eq("message_language_code", messageLanguageCode)
       .order("alert_date", { ascending: false }),
     supabase
       .from("feedback_messages")
       .select("*")
-      .eq("is_active", true),
+      .eq("is_active", true)
+      .eq("language_code", messageLanguageCode),
     supabase
       .from("cat_alert_evaluation_queue")
       .select("due_at, last_activity_at, last_error")
