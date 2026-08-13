@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { rulesConfig, type AlertLevel, type CombinationClause, type MatchRule, type SingleMetricCondition } from "../_shared/alert-rules.ts";
 import { sendEmail } from "../_shared/email.ts";
+import { shouldPreserveWeightChangeAlerts } from "../_shared/weight-alert-persistence.ts";
 
 type CatRow = {
   id: string;
@@ -578,13 +579,24 @@ async function fetchRecipients(cat: CatRow) {
   }));
 }
 
-async function deactivatePreviousAlerts(catId: string, latestDate: string) {
-  const { error } = await admin
+async function deactivatePreviousAlerts(
+  catId: string,
+  latestDate: string,
+  latestWeightKg: number | string | null | undefined,
+) {
+  // ### keep derived weight alerts until a new measurement can confirm they no longer apply
+  let query = admin
     .from("alerts")
     .update({ is_active: false })
     .eq("cat_id", catId)
     .lt("alert_date", latestDate)
     .eq("is_active", true);
+
+  if (shouldPreserveWeightChangeAlerts(latestWeightKg)) {
+    query = query.neq("metric", "weight_change_percent");
+  }
+
+  const { error } = await query;
 
   if (error) {
     throw error;
@@ -817,7 +829,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
 
   if (events.length === 0) {
     if (!dryRun) {
-      await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+      await deactivatePreviousAlerts(cat.id, latestRecord.record_date, latestRecord.weight_kg);
     }
 
     return {
@@ -836,7 +848,7 @@ async function evaluateCat(cat: CatRow, messageMap: Map<string, string>, dryRun 
     };
   }
 
-  await deactivatePreviousAlerts(cat.id, latestRecord.record_date);
+  await deactivatePreviousAlerts(cat.id, latestRecord.record_date, latestRecord.weight_kg);
 
   for (const event of events) {
     const alertVariants = await upsertAlertVariants(cat.id, event, latestRecord.id, messageMap);
